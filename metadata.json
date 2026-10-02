@@ -1,0 +1,6 @@
+{
+  "name": "Gadget Hub Mart",
+  "description": "Premium tech accessories and smart gadgets for work, play, and everywhere in between. Chargers, cables, audio, cases, mounts, and more.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
