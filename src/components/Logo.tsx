@@ -4,7 +4,7 @@ interface LogoProps {
   className?: string;
 }
 
-export const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10" }) => {
+export const Logo: React.FC<LogoProps> = ({ className = "w-12 h-12" }) => {
   return (
     <div className={`${className} rounded-full bg-[#0a192f] flex items-center justify-center relative overflow-hidden shadow-md border border-cyan-400/40 group shrink-0 select-none`}>
       <svg className="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">

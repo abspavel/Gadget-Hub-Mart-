@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+
+# Googlebot specific rules
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+
+Sitemap: https://gadgethubmart.bd/sitemap.xml

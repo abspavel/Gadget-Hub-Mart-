@@ -63,7 +63,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           <div className="lg:col-span-6 flex flex-col gap-4">
             {/* Main Active Image Preview (Square) */}
             <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gray-50 flex items-center justify-center border-0 shadow-xs">
-              {product.badge && (
+              {product.badge && !/স্টক|মজুদ|stock|ইন স্টক|৫০/i.test(product.badge) && (
                 <span className="absolute top-4 left-4 z-10 bg-[#0a192f] text-white text-[10px] sm:text-xs font-black px-3.5 py-1.5 rounded-full shadow-md uppercase tracking-wider">
                   {product.badge}
                 </span>

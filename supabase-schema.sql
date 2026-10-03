@@ -60,6 +60,19 @@ CREATE TABLE IF NOT EXISTS public.subscribers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.customers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    city TEXT,
+    thana TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
 CREATE TABLE IF NOT EXISTS public.steadfast_settings (
     id TEXT PRIMARY KEY DEFAULT 'config',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -201,6 +214,11 @@ CREATE POLICY "Public Full Access on subscribers" ON public.subscribers FOR ALL 
 -- Steadfast Settings Policy
 DROP POLICY IF EXISTS "Public Full Access on steadfast_settings" ON public.steadfast_settings;
 CREATE POLICY "Public Full Access on steadfast_settings" ON public.steadfast_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- Customers Policy
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Full Access on customers" ON public.customers;
+CREATE POLICY "Public Full Access on customers" ON public.customers FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- 6. INITIAL SEED DATA (SAFE UPSERTS)

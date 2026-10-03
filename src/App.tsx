@@ -44,9 +44,11 @@ import { AffiliatesPage } from './components/AffiliatesPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { TermsOfServicePage } from './components/TermsOfServicePage';
 import { SecurityPage } from './components/SecurityPage';
+import { ProfilePage } from './components/ProfilePage';
 
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
-import { Product, CartItem, Currency, CategoryItem } from './types';
+import { Product, CartItem, Currency, CategoryItem, CustomerUser } from './types';
+import { getCurrentCustomer } from './utils/customerAuth';
 import { Check, ShoppingBag, Zap, ShieldAlert, ArrowRight } from 'lucide-react';
 
 type ViewState =
@@ -74,7 +76,8 @@ type ViewState =
   | 'terms-of-service'
   | 'security'
   | 'admin'
-  | 'checkout';
+  | 'checkout'
+  | 'profile';
 
 const INITIAL_DEMO_ORDERS: any[] = [
   {
@@ -348,6 +351,9 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
 
+  // Customer Account & Profile state
+  const [currentCustomer, setCurrentCustomer] = useState<CustomerUser | null>(() => getCurrentCustomer());
+
   // Currency (Optimized for Bangladesh)
   const [currentCurrency, setCurrentCurrency] = useState<Currency>(CURRENCIES.BDT);
 
@@ -453,7 +459,15 @@ export default function App() {
         <Navbar
           cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
           onOpenCart={() => setCartOpen(true)}
-          onOpenAuth={() => setAuthOpen(true)}
+          onOpenAuth={() => {
+            setCurrentView('profile');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+          onOpenProfile={() => {
+            setCurrentView('profile');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+          currentCustomer={currentCustomer}
           onSelectProduct={handleSelectProduct}
           onNavigateSection={handleNavigateSection}
           products={products}
@@ -753,7 +767,8 @@ export default function App() {
               const newOrd = { 
                 id, 
                 ...orderDetails, 
-                status: 'Pending', 
+                email: orderDetails.email || currentCustomer?.email || '',
+                status: 'Pending' as const, 
                 date: new Date().toLocaleDateString('en-CA') 
               };
               const updatedOrders = [newOrd, ...orders];
@@ -766,6 +781,7 @@ export default function App() {
                   id: newOrd.id,
                   customer_name: newOrd.customerName,
                   phone: newOrd.phone,
+                  email: newOrd.email || null,
                   address: newOrd.address,
                   items: newOrd.items,
                   total: newOrd.total,
@@ -789,6 +805,26 @@ export default function App() {
               });
             }}
             onClearCart={() => setCart([])}
+          />
+        )}
+
+        {currentView === 'profile' && (
+          <ProfilePage
+            currentCustomer={currentCustomer}
+            onCustomerChange={(cust) => setCurrentCustomer(cust)}
+            orders={orders}
+            onBack={() => {
+              setCurrentView('home');
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
+            onNavigateHome={() => {
+              setCurrentView('home');
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
+            onNavigateAllProducts={() => {
+              setCurrentView('all-products');
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
           />
         )}
 

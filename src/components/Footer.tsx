@@ -26,13 +26,13 @@ export const Footer: React.FC<FooterProps> = ({
           
           {/* Column 1: Brand Info (Spans 4 cols on lg) */}
           <div className="col-span-2 md:col-span-3 lg:col-span-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <Logo className="w-10 h-10" />
+            <div className="flex items-center gap-3.5">
+              <Logo className="w-12 h-12 sm:w-14 sm:h-14" />
               <div>
-                <h4 className="text-lg font-bold text-white tracking-tight leading-none">
+                <h4 className="text-xl font-extrabold text-white tracking-tight leading-none">
                   Gadget Hub Mart
                 </h4>
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-xs text-gray-400 mt-1 font-medium">
                   Accessories for a Smarter You
                 </p>
               </div>
@@ -99,6 +99,11 @@ export const Footer: React.FC<FooterProps> = ({
               Support
             </h5>
             <ul className="space-y-2 text-xs text-gray-400">
+              <li>
+                <button onClick={() => onNavigateView('profile')} className="hover:text-blue-400 font-bold transition-colors cursor-pointer text-left text-slate-200">
+                  My Profile & Orders
+                </button>
+              </li>
               <li>
                 <button onClick={() => onNavigateView('track-order')} className="hover:text-white transition-colors cursor-pointer text-left">
                   Track Order

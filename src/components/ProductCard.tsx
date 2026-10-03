@@ -44,7 +44,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     onBuyNow(product, 1, selectedColor);
   };
 
-  const badge = badgeText || product.badge;
+  // Filter out any stock badges from appearing over the product photo
+  const rawBadge = badgeText || product.badge;
+  const isStockBadge = rawBadge && /স্টক|মজুদ|stock|ইন স্টক|৫০/i.test(rawBadge);
+  const badge = isStockBadge ? null : rawBadge;
 
   return (
     <div
@@ -61,7 +64,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             loading="lazy"
           />
 
-          {/* Badge */}
+          {/* Badge (Stock badges are strictly prevented from appearing on photos) */}
           {badge && (
             <span className="absolute top-2 left-2 bg-[#0a192f] text-white text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm z-10">
               {badge}

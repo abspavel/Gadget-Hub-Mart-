@@ -4,13 +4,15 @@ import {
   Sparkles, Flame, PackageCheck, Truck, HelpCircle, RotateCcw, 
   ShieldCheck, Phone, Tag, Info
 } from 'lucide-react';
-import { Product, Currency, CategoryItem } from '../types';
+import { Product, Currency, CategoryItem, CustomerUser } from '../types';
 import { Logo } from './Logo';
 
 interface NavbarProps {
   cartCount: number;
   onOpenCart: () => void;
   onOpenAuth: () => void;
+  onOpenProfile?: () => void;
+  currentCustomer?: CustomerUser | null;
   onSelectProduct: (product: Product) => void;
   onNavigateSection: (sectionId: string) => void;
   onNavigateView?: (view: string) => void;
@@ -27,6 +29,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   cartCount,
   onOpenCart,
   onOpenAuth,
+  onOpenProfile,
+  currentCustomer,
   onNavigateSection,
   onNavigateView,
   onOpenTrackOrder,
@@ -51,15 +55,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={() => onNavigateSection('hero')}
-              className="flex items-center gap-2.5 text-left cursor-pointer group"
+              className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer group"
               aria-label="Gadget Hub Mart Home"
             >
-              <Logo className="w-7 h-7 sm:w-8 sm:h-8" />
+              <Logo className="w-10 h-10 sm:w-12 sm:h-12" />
               <div className="flex flex-col">
-                <span className="font-extrabold text-xs sm:text-sm tracking-tight text-white group-hover:text-blue-400 transition-colors">
+                <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-blue-400 transition-colors">
                   Gadget Hub Mart
                 </span>
-                <span className="text-[9px] text-slate-400 tracking-wide -mt-0.5 hidden xs:inline">
+                <span className="text-[10px] sm:text-[11px] text-slate-300 font-medium tracking-wide -mt-0.5 hidden xs:inline">
                   Tech Essentials
                 </span>
               </div>
@@ -97,14 +101,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* ================= ZONE 3: ACTIONS & SLIM MENU BUTTON ================= */}
           <div className="flex items-center gap-2">
             
-            {/* User Account */}
+            {/* User Account / Customer Profile */}
             <button
-              onClick={onOpenAuth}
-              aria-label="User Account"
-              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition-colors cursor-pointer border border-slate-700"
-              title="User Account"
+              onClick={() => {
+                if (onOpenProfile) onOpenProfile();
+                else if (onNavigateView) onNavigateView('profile');
+                else onOpenAuth();
+              }}
+              aria-label="কাস্টমার প্রোফাইল ও অ্যাকাউন্ট"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-full text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition-colors cursor-pointer border border-slate-700 max-w-[140px]"
+              title={currentCustomer ? `কাস্টমার প্রোফাইল: ${currentCustomer.name}` : "কাস্টমার প্রোফাইল ও অ্যাকাউন্ট"}
             >
-              <User className="w-3.5 h-3.5" />
+              {currentCustomer ? (
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                  {currentCustomer.name.charAt(0).toUpperCase()}
+                </div>
+              ) : (
+                <User className="w-3.5 h-3.5" />
+              )}
+              <span className="text-[11px] font-bold truncate hidden sm:inline">
+                {currentCustomer ? currentCustomer.name.split(' ')[0] : 'প্রোফাইল'}
+              </span>
             </button>
 
             {/* Shopping Cart with Badge */}
@@ -152,13 +169,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             
             {/* Popup Header */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 bg-slate-50/80">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                  <Menu className="w-4 h-4" />
-                </div>
+              <div className="flex items-center gap-3">
+                <Logo className="w-10 h-10" />
                 <div>
-                  <h3 className="text-sm font-extrabold text-gray-950">Navigation Menu</h3>
-                  <span className="text-[10px] text-gray-500">Gadget Hub Mart</span>
+                  <h3 className="text-sm font-extrabold text-gray-950">Gadget Hub Mart</h3>
+                  <span className="text-[10px] text-gray-500">Navigation Menu</span>
                 </div>
               </div>
               <button
@@ -181,6 +196,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="flex items-center gap-3">
                   <Home className="w-4 h-4 text-blue-600 shrink-0" />
                   <span>Home</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              </button>
+
+              {/* 2. My Profile & Orders */}
+              <button
+                onClick={() => handleNav(() => {
+                  if (onOpenProfile) onOpenProfile();
+                  else if (onNavigateView) onNavigateView('profile');
+                  else onOpenAuth();
+                })}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-blue-50/80 text-gray-800 hover:text-blue-600 font-bold transition-colors cursor-pointer text-left bg-blue-50/40"
+              >
+                <div className="flex items-center gap-3">
+                  <User className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>{currentCustomer ? `আমার প্রোফাইল (${currentCustomer.name.split(' ')[0]})` : 'প্রোফাইল ও অর্ডার ট্র্যাক'}</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               </button>

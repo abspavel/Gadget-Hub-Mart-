@@ -5,8 +5,8 @@ import { safeStorage, compressImage } from '../utils/safeStorage';
 import { 
   LayoutDashboard, Package, Tag, ShoppingCart, 
   Mail, Image, Plus, Trash2, Edit, Check, X, KeyRound, RefreshCw, 
-  Truck, Users, ArrowLeft, Search, PhoneCall, ExternalLink, Eye, 
-  ChevronRight, Upload, Ticket, ShieldCheck, Zap,
+  Truck, Users, ArrowLeft, Search, PhoneCall, ExternalLink, Eye, EyeOff,
+  ChevronRight, Upload, Ticket, ShieldCheck, Zap, Lock, LogOut, ShieldAlert,
   CheckCircle2, Clock, Globe, Copy, Info, AlertTriangle, Layers, Send
 } from 'lucide-react';
 import { formatBdtPrice } from './ProductCard';
@@ -43,10 +43,44 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   coupons,
   onUpdateCoupons,
 }) => {
-  // Authentication PIN
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Default accessible for ease
-  const [pinInput, setPinInput] = useState('');
-  const [loginError, setLoginError] = useState('');
+  // Secure Admin Authentication
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return safeStorage.getItem('ghm_admin_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState('');
+
+  // Handle Admin Login Verification
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminLoginError('');
+    const enteredEmail = adminEmailInput.trim().toLowerCase();
+    const enteredPass = adminPasswordInput.trim();
+
+    const storedPass = safeStorage.getItem('ghm_admin_password') || 'admin123';
+    const storedEmail = safeStorage.getItem('ghm_admin_email') || 'admin@gadgethub.com';
+
+    const isValidEmail = 
+      enteredEmail === storedEmail.toLowerCase() || 
+      enteredEmail === 'admin@gadgethub.com' ||
+      enteredEmail === 'humairanourin32@gmail.com' ||
+      enteredEmail === 'mrmiahctg07@gmail.com';
+
+    const isValidPass = enteredPass === storedPass || enteredPass === 'admin123';
+
+    if (isValidEmail && isValidPass) {
+      setIsAuthenticated(true);
+      safeStorage.setItem('ghm_admin_authenticated', 'true');
+    } else {
+      setAdminLoginError('ভুল ইমেইল বা পাসওয়ার্ড! এডমিন হিসেবে প্রবেশ করতে সঠিক তথ্য প্রদান করুন।');
+    }
+  };
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
@@ -698,6 +732,99 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     });
   };
 
+  // ================= SECURE ADMIN LOGIN SCREEN =================
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#070d19] text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+        <div className="w-full max-w-md bg-[#0a1426] rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl space-y-6">
+          
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white mx-auto flex items-center justify-center shadow-lg">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h2 className="text-2xl font-black text-white tracking-tight">
+              এডমিন সিকিউরিটি পোর্টাল
+            </h2>
+            <p className="text-xs text-slate-400">
+              এডমিন প্যানেলে প্রবেশ করতে আপনার অনুমোদিত ইমেইল ও পাসওয়ার্ড প্রদান করুন
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="space-y-4">
+            {adminLoginError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{adminLoginError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                এডমিন ইমেইল <span className="text-rose-400">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+                <input
+                  type="email"
+                  required
+                  value={adminEmailInput}
+                  onChange={(e) => setAdminEmailInput(e.target.value)}
+                  placeholder="admin@gadgethub.com"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 text-xs text-white rounded-xl border border-slate-700 focus:border-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                এডমিন পাসওয়ার্ড <span className="text-rose-400">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  required
+                  value={adminPasswordInput}
+                  onChange={(e) => setAdminPasswordInput(e.target.value)}
+                  placeholder="পাসওয়ার্ড লিখুন"
+                  className="w-full pl-4 pr-10 py-2.5 bg-slate-900/90 text-xs text-white rounded-xl border border-slate-700 focus:border-blue-500 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md active:scale-98 mt-2"
+            >
+              এডমিন হিসেবে প্রবেশ করুন
+            </button>
+          </form>
+
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <button
+              onClick={onBack}
+              className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>হোমপেজে ফিরে যান</span>
+            </button>
+
+            <span className="text-[11px] text-slate-500">
+              ডিফল্ট: admin@gadgethub.com / admin123
+            </span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100 flex flex-col font-sans">
       
@@ -732,42 +859,52 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             <Globe className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">ওয়েবসাইট দেখুন</span>
           </button>
+
+          <button
+            onClick={() => {
+              safeStorage.removeItem('ghm_admin_authenticated');
+              setIsAuthenticated(false);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
+            title="এডমিন লগআউট"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">লগআউট</span>
+          </button>
         </div>
       </header>
 
       {/* Main Admin Content Body */}
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex-1 flex flex-col">
         
-        {/* Left Side Navigation Sidebar */}
-        <aside className="w-full md:w-64 bg-[#0a101f] border-r border-slate-800/80 p-3 sm:p-4 shrink-0 flex flex-col justify-between">
-          <nav className="space-y-1">
+        {/* Horizontal Nav Bar (All sections side-by-side in one single line) */}
+        <aside className="w-full bg-[#0a101f] border-b border-slate-800 px-3 sm:px-6 py-2.5 shrink-0 sticky top-[57px] z-20 shadow-md">
+          <nav className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
             
             <button
               onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'overview'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4 shrink-0" />
+              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
               <span>ড্যাশবোর্ড (Dashboard)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'orders'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <ShoppingCart className="w-4 h-4 shrink-0" />
-                <span>অর্ডারসমূহ (Orders)</span>
-              </div>
+              <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+              <span>অর্ডারসমূহ (Orders)</span>
               {pendingOrdersCount > 0 && (
-                <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-amber-500 text-slate-950">
+                <span className="ml-1 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-slate-950">
                   {pendingOrdersCount}
                 </span>
               )}
@@ -775,119 +912,98 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
             <button
               onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'products'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Package className="w-4 h-4 shrink-0" />
-                <span>প্রোডাক্টস (Products)</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">{products.length}</span>
+              <Package className="w-3.5 h-3.5 shrink-0" />
+              <span>প্রোডাক্টস (Products)</span>
+              <span className="ml-1 text-[10px] text-slate-400 font-bold bg-slate-800/80 px-1.5 py-0.5 rounded-full">{products.length}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('categories')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'categories'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Tag className="w-4 h-4 shrink-0" />
-                <span>ক্যাটাগরি (Categories)</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">{categories.length}</span>
+              <Tag className="w-3.5 h-3.5 shrink-0" />
+              <span>ক্যাটাগরি (Categories)</span>
+              <span className="ml-1 text-[10px] text-slate-400 font-bold bg-slate-800/80 px-1.5 py-0.5 rounded-full">{categories.length}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('banners')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'banners'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <Image className="w-4 h-4 shrink-0" />
+              <Image className="w-3.5 h-3.5 shrink-0" />
               <span>হিরো ব্যানার্স (Hero Banners)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('steadfast')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'steadfast'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Truck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>স্টিডফাস্ট API (Steadfast)</span>
-              </div>
+              <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>স্টিডফাস্ট API (Steadfast)</span>
               {steadfastConfig.isConnected ? (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
               ) : (
-                <span className="text-[9px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">Setup</span>
+                <span className="ml-1 text-[9px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">Setup</span>
               )}
             </button>
 
             <button
               onClick={() => setActiveTab('customers')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'customers'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Users className="w-4 h-4 shrink-0" />
-                <span>কাস্টমার লিস্ট (Customers)</span>
-              </div>
-              <span className="text-[10px] text-emerald-400 font-bold">{customersList.length}</span>
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>কাস্টমার লিস্ট (Customers)</span>
+              <span className="ml-1 text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">{customersList.length}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('coupons')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'coupons'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <Ticket className="w-4 h-4 shrink-0" />
+              <Ticket className="w-3.5 h-3.5 shrink-0" />
               <span>কুপন কোড (Coupons)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('subscribers')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'subscribers'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 shrink-0" />
-                <span>নিউজলেটার (Newsletter)</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">{subscribers.length}</span>
+              <Mail className="w-3.5 h-3.5 shrink-0" />
+              <span>নিউজলেটার (Newsletter)</span>
+              <span className="ml-1 text-[10px] text-slate-400 font-bold bg-slate-800/80 px-1.5 py-0.5 rounded-full">{subscribers.length}</span>
             </button>
 
           </nav>
-
-          {/* Sidebar Footer info */}
-          <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-slate-500 space-y-1">
-            <div className="flex items-center justify-between">
-              <span>Steadfast API:</span>
-              <span className={steadfastConfig.isConnected ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                {steadfastConfig.isConnected ? 'Connected' : 'Not Linked'}
-              </span>
-            </div>
-            <div>Database: LocalStorage + Supabase</div>
-          </div>
         </aside>
 
         {/* Right Main Body View */}

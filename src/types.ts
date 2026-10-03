@@ -152,3 +152,15 @@ export interface SteadfastConfig {
   baseUrl?: string;
   isConnected: boolean;
 }
+
+export interface CustomerUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  thana?: string;
+  createdAt: string;
+  password?: string;
+}
