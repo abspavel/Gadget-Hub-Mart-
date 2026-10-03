@@ -7,9 +7,10 @@ import {
   Mail, Image, Plus, Trash2, Edit, Check, X, KeyRound, RefreshCw, 
   Truck, Users, ArrowLeft, Search, PhoneCall, ExternalLink, Eye, EyeOff,
   ChevronRight, Upload, Ticket, ShieldCheck, Zap, Lock, LogOut, ShieldAlert,
-  CheckCircle2, Clock, Globe, Copy, Info, AlertTriangle, Layers, Send
+  CheckCircle2, Clock, Globe, Copy, Info, AlertTriangle, Layers, Send, Download
 } from 'lucide-react';
 import { formatBdtPrice } from './ProductCard';
+import { downloadOrderInvoice } from '../utils/invoiceGenerator';
 
 interface AdminPageProps {
   onBack: () => void;
@@ -1320,6 +1321,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={async () => {
+                                    await downloadOrderInvoice(ord);
+                                    showToast(`ইনভয়েস #${ord.id} ডাউনলোড হয়েছে`);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white transition-colors cursor-pointer"
+                                  title="A4 ইনভয়েস ডাউনলোড করুন"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   onClick={() => setViewingOrder(ord)}
                                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 transition-colors cursor-pointer"
@@ -2699,10 +2710,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <button
+                onClick={async () => {
+                  await downloadOrderInvoice(viewingOrder);
+                  showToast(`ইনভয়েস #${viewingOrder.id} ডাউনলোড হয়েছে`);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>A4 ইনভয়েস ডাউনলোড করুন</span>
+              </button>
               <button
                 onClick={() => setViewingOrder(null)}
-                className="px-5 py-2 rounded-xl bg-slate-800 text-white font-bold text-xs"
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
               >
                 বন্ধ করুন
               </button>

@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase';
 import { 
   LayoutDashboard, Package, Tag, ShoppingCart, AlertCircle, 
   Mail, Image, Plus, Trash2, Edit, Check, X, KeyRound, Save, RefreshCw, 
-  Truck, ShieldCheck, Users, CreditCard, ExternalLink, Sparkles, Upload
+  Truck, ShieldCheck, Users, CreditCard, ExternalLink, Sparkles, Upload, Download
 } from 'lucide-react';
+import { downloadOrderInvoice } from '../utils/invoiceGenerator';
 
 interface Order {
   id: string;
@@ -703,13 +704,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div className="text-xs font-bold text-blue-400">
                               Total: ৳{ord.total.toFixed(2)}
                             </div>
-                            <button
-                              onClick={() => dispatchToCourier(ord.id)}
-                              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md cursor-pointer transition-transform active:scale-95"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>Send to Courier (1-Click)</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => downloadOrderInvoice(ord)}
+                                className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md cursor-pointer transition-transform active:scale-95"
+                                title="Download A4 Invoice"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Invoice</span>
+                              </button>
+                              <button
+                                onClick={() => dispatchToCourier(ord.id)}
+                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md cursor-pointer transition-transform active:scale-95"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>Send to Courier (1-Click)</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}

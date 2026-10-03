@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { 
   User, Mail, Phone, MapPin, Package, Clock, CheckCircle2, 
   Truck, AlertCircle, ArrowLeft, LogOut, Edit3, Eye, EyeOff, 
-  ExternalLink, ChevronRight, ShoppingBag, ShieldCheck, Copy, Check
+  ExternalLink, ChevronRight, ShoppingBag, ShieldCheck, Copy, Check, Download
 } from 'lucide-react';
 import { CustomerUser, Order } from '../types';
 import { formatBdtPrice } from './ProductCard';
 import { loginCustomer, registerCustomer, updateCustomerProfile, logoutCustomer } from '../utils/customerAuth';
+import { downloadOrderInvoice } from '../utils/invoiceGenerator';
 
 interface ProfilePageProps {
   currentCustomer: CustomerUser | null;
@@ -649,7 +650,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => downloadOrderInvoice(order)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all border border-blue-200 cursor-pointer shadow-2xs active:scale-95"
+                          title="A4 ইনভয়েস ডাউনলোড করুন"
+                        >
+                          <Download className="w-3.5 h-3.5 text-blue-600" />
+                          <span>ইনভয়েস</span>
+                        </button>
                         {getStatusBadge(order.status)}
                       </div>
                     </div>

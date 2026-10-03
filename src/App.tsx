@@ -49,6 +49,7 @@ import { ProfilePage } from './components/ProfilePage';
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
 import { Product, CartItem, Currency, CategoryItem, CustomerUser } from './types';
 import { getCurrentCustomer } from './utils/customerAuth';
+import { trackPageView, trackAddToCart, trackViewContent } from './utils/pixel';
 import { Check, ShoppingBag, Zap, ShieldAlert, ArrowRight } from 'lucide-react';
 
 type ViewState =
@@ -345,6 +346,12 @@ export default function App() {
     fetchInitialData();
   }, []);
 
+  // Meta Pixel PageView tracking on view/route changes
+  useEffect(() => {
+    const pageName = typeof currentView === 'string' ? currentView : currentView.type;
+    trackPageView(pageName);
+  }, [currentView]);
+
   // Modals & Drawers state
   const [cartOpen, setCartOpen] = useState(false);
   const [trackOrderOpen, setTrackOrderOpen] = useState(false);
@@ -381,6 +388,16 @@ export default function App() {
   const handleAddToCart = (product: Product, quantity = 1, color?: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
+    // Fire Meta Pixel AddToCart event
+    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    trackAddToCart({
+      id: product.id,
+      name: product.name,
+      price: priceInBdt,
+      quantity,
+      currency: 'BDT'
+    });
+
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id && item.selectedColor === color
@@ -417,6 +434,16 @@ export default function App() {
   };
 
   const handleSelectProduct = (product: Product) => {
+    // Fire Meta Pixel ViewContent event
+    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    trackViewContent({
+      id: product.id,
+      name: product.name,
+      price: priceInBdt,
+      category: product.category,
+      currency: 'BDT'
+    });
+
     setCurrentView({ type: 'product', product });
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };

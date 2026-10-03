@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Star, ShieldCheck, Truck, RotateCcw, Check, Plus, Minus, Zap } from 'lucide-react';
 import { Product, Currency } from '../types';
 import { formatBdtPrice, ProductCard } from './ProductCard';
+import { trackViewContent } from '../utils/pixel';
 
 interface ProductDetailPageProps {
   product: Product;
@@ -20,6 +21,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   onSelectProduct,
   allProducts,
 }) => {
+  // Fire Meta Pixel ViewContent event on Product Detail Page
+  useEffect(() => {
+    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    trackViewContent({
+      id: product.id,
+      name: product.name,
+      price: priceInBdt,
+      category: product.category,
+      currency: 'BDT'
+    });
+  }, [product.id, product.name, product.price, product.category]);
   // Collect 2-3 images
   const imageList = product.images && product.images.length > 0 
     ? product.images 
