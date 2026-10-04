@@ -14,7 +14,7 @@ import { formatBdtPrice } from './ProductCard';
 import { downloadOrderInvoice } from '../utils/invoiceGenerator';
 import { slugify, getProductSlug } from '../utils/slug';
 import { 
-  getShortLinks, saveShortLink, deleteShortLink, ShortLinkItem,
+  getShortLinks, saveShortLink, deleteShortLink, clearAllShortLinks, ShortLinkItem,
   getSavedCustomDomain, setSavedCustomDomain, getEffectiveShortDomain,
   normalizeDomain, buildShortUrl, buildCanonicalProductUrl, DEFAULT_SHORT_DOMAIN
 } from '../utils/shortLinks';
@@ -99,6 +99,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [shortLinks, setShortLinks] = useState<ShortLinkItem[]>(() => getShortLinks());
   const [customShortDomain, setCustomShortDomainState] = useState<string>(() => getSavedCustomDomain() || DEFAULT_SHORT_DOMAIN);
   const [isShortLinkModalOpen, setIsShortLinkModalOpen] = useState(false);
+  const [selectedShortLinkProduct, setSelectedShortLinkProduct] = useState<Product | null>(null);
   const [newShortCode, setNewShortCode] = useState('');
   const [newShortTarget, setNewShortTarget] = useState('');
   const [newShortTitle, setNewShortTitle] = useState('');
@@ -789,6 +790,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       target = `/${target}`;
     }
 
+    // Saves ONLY this single short link - no extra links are created
     const updated = saveShortLink({
       code: cleanCode,
       targetPath: target,
@@ -796,8 +798,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     });
 
     setShortLinks(updated);
-    showToast(`শর্ট লিংক /s/${cleanCode} সফলভাবে সংরক্ষিত হয়েছে!`);
+    const fullShortUrl = buildShortUrl(cleanCode, effectiveDomain);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(fullShortUrl).catch(() => {});
+    }
+    showToast(`শুধুমাত্র এই প্রোডাক্টের ১টি লিংক তৈরি ও কপি হয়েছে: ${fullShortUrl}`);
     setIsShortLinkModalOpen(false);
+    setSelectedShortLinkProduct(null);
     setNewShortCode('');
     setNewShortTarget('');
     setNewShortTitle('');
@@ -809,12 +816,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     showToast(`শর্ট লিংক /s/${code} মুছে ফেলা হয়েছে!`);
   };
 
+  const handleClearAllShortLinks = () => {
+    const updated = clearAllShortLinks();
+    setShortLinks(updated);
+    showToast('সকল শর্ট লিংক মুছে ফেলা হয়েছে!');
+  };
+
   const handleQuickCreateProductShortLink = (prod: Product) => {
+    setSelectedShortLinkProduct(prod);
     const slug = getProductSlug(prod);
-    const shortCode = slug.split('-').slice(0, 2).join('-') || slug;
+    const shortCode = slug.split('-').slice(0, 3).join('-') || slug;
     setNewShortCode(shortCode);
     setNewShortTarget(`/p/${slug}`);
-    setNewShortTitle(`${prod.name} Promo Link`);
+    setNewShortTitle(`${prod.name} লিংক`);
     setIsShortLinkModalOpen(true);
   };
 
@@ -2023,6 +2037,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
                   <button
                     onClick={() => {
+                      setSelectedShortLinkProduct(null);
                       setNewShortCode('');
                       setNewShortTarget('');
                       setNewShortTitle('');
@@ -2090,16 +2105,36 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
               {/* Short Links List */}
               <div className="bg-[#111c38] rounded-3xl border border-slate-800 overflow-hidden shadow-sm space-y-3 p-5">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-white uppercase tracking-wider">
-                    সক্রিয় শর্ট লিংকসমূহ ({shortLinks.length} টি)
-                  </h4>
-                  <span className="text-[10px] text-slate-400">
-                    লিংক কপি করে সরাসরি ফেসবুক পোস্ট, এড বা মেসেঞ্জারে ব্যবহার করুন
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                      সক্রিয় শর্ট লিংকসমূহ ({shortLinks.length} টি)
+                    </h4>
+                    <span className="text-[10px] text-slate-400">
+                      শুধুমাত্র যেসকল প্রোডাক্টের জন্য লিংক তৈরি করেছেন সেগুলি এখানে প্রদর্শিত হচ্ছে
+                    </span>
+                  </div>
+                  {shortLinks.length > 0 && (
+                    <button
+                      onClick={handleClearAllShortLinks}
+                      className="px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-500/30 text-xs font-bold transition-all cursor-pointer self-start sm:self-auto"
+                      title="সব অপ্রয়োজনীয় শর্ট লিংক ডিলিট করুন"
+                    >
+                      সব লিংক মুছুন ({shortLinks.length})
+                    </button>
+                  )}
                 </div>
 
-                <div className="divide-y divide-slate-800/80">
+                {shortLinks.length === 0 ? (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-slate-400 text-xs space-y-1.5">
+                    <CheckCircle2 className="w-8 h-8 text-cyan-400 mx-auto opacity-70" />
+                    <p className="font-bold text-white text-sm">বর্তমানে কোনো শর্ট লিংক নেই</p>
+                    <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                      প্রোডাক্ট তালিকা থেকে যে নির্দিষ্ট প্রোডাক্টটির পাশে লিংক আইকনে ক্লিক করবেন, শুধুমাত্র সেই নির্দিষ্ট প্রোডাক্টটির জন্যই ১টি লিংক তৈরি হবে।
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80">
                   {shortLinks.map((item) => {
                     const fullShortUrl = buildShortUrl(item.code, effectiveDomain);
                     const targetProduct = products.find(p => `/p/${getProductSlug(p)}` === item.targetPath || p.id === item.targetPath.replace(/^\/p\//, ''));
@@ -2165,6 +2200,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     );
                   })}
                 </div>
+                )}
               </div>
 
             </div>
@@ -2895,36 +2931,77 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
             <form onSubmit={handleSaveShortLink} className="space-y-4 text-xs">
               
-              {/* Select from existing products */}
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  টার্গেট প্রোডাক্ট নির্বাচন করুন (Quick Select)
-                </label>
-                <select
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    const p = products.find(x => x.id === selId);
-                    if (p) {
-                      const slug = getProductSlug(p);
-                      setNewShortTarget(`/p/${slug}`);
-                      if (!newShortCode) {
-                        const code = slug.split('-').slice(0, 2).join('-') || slug;
-                        setNewShortCode(code);
+              {/* Target Product (Selected Product or Pick from List) */}
+              {selectedShortLinkProduct ? (
+                <div className="p-3.5 bg-cyan-950/40 rounded-2xl border border-cyan-500/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+                      টার্গেট প্রোডাক্ট (১টি নির্দিষ্ট প্রোডাক্ট)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedShortLinkProduct(null)}
+                      className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      পরিবর্তন করুন
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={selectedShortLinkProduct.imageUrl}
+                      alt={selectedShortLinkProduct.name}
+                      className="w-12 h-12 rounded-xl object-cover bg-slate-900 border border-slate-700 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded uppercase">
+                        {selectedShortLinkProduct.category}
+                      </span>
+                      <h4 className="text-xs font-bold text-white truncate" title={selectedShortLinkProduct.name}>
+                        {selectedShortLinkProduct.name}
+                      </h4>
+                      <span className="text-xs font-black text-cyan-300">{formatBdtPrice(selectedShortLinkProduct.price)}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    টার্গেট প্রোডাক্ট নির্বাচন করুন (১টি প্রোডাক্ট বাছাই করুন)
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const selId = e.target.value;
+                      const p = products.find(x => x.id === selId);
+                      if (p) {
+                        setSelectedShortLinkProduct(p);
+                        const slug = getProductSlug(p);
+                        setNewShortTarget(`/p/${slug}`);
+                        if (!newShortCode) {
+                          const code = slug.split('-').slice(0, 3).join('-') || slug;
+                          setNewShortCode(code);
+                        }
+                        if (!newShortTitle) {
+                          setNewShortTitle(`${p.name} লিংক`);
+                        }
                       }
-                      if (!newShortTitle) {
-                        setNewShortTitle(`${p.name} Campaign`);
-                      }
-                    }
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
-                >
-                  <option value="">-- স্টোরের প্রোডাক্ট তালিকা থেকে বাছাই করুন --</option>
-                  {products.map((p, idx) => (
-                    <option key={`${p.id}-${idx}`} value={p.id}>
-                      {p.name} ({formatBdtPrice(p.price)})
-                    </option>
-                  ))}
-                </select>
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  >
+                    <option value="">-- স্টোরের প্রোডাক্ট তালিকা থেকে বাছাই করুন --</option>
+                    {products.map((p, idx) => (
+                      <option key={`${p.id}-${idx}`} value={p.id}>
+                        {p.name} ({formatBdtPrice(p.price)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Strict Notice: Only 1 link is generated */}
+              <div className="p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-[11px] flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>শুধুমাত্র এই নির্দিষ্ট প্রোডাক্টটির জন্য ১টি লিংক তৈরি হবে। কোনো অতিরিক্ত লিংক তৈরি হবে না।</span>
               </div>
 
               {/* Target Path */}
@@ -2999,7 +3076,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer shadow-md active:scale-95"
                 >
-                  শর্ট লিংক সংরক্ষণ করুন
+                  শুধুমাত্র এই ১টি লিংক তৈরি ও সংরক্ষণ করুন
                 </button>
               </div>
             </form>

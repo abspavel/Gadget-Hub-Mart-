@@ -95,51 +95,8 @@ export function buildCanonicalProductUrl(slug: string, overrideDomain?: string):
   return `${base}/p/${cleanSlug}`;
 }
 
-// Default initial short links
-const INITIAL_SHORT_LINKS: ShortLinkItem[] = [
-  {
-    code: 'airpods',
-    targetPath: '/p/airpods-pro-2nd-gen',
-    title: 'AirPods Pro 2nd Gen Promo',
-    clicks: 142,
-    createdAt: '2026-09-01'
-  },
-  {
-    code: 'charger',
-    targetPath: '/p/flexagear-65w-gan-charger',
-    title: '65W GaN Fast Charger',
-    clicks: 98,
-    createdAt: '2026-09-05'
-  },
-  {
-    code: 'powerbank',
-    targetPath: '/p/powervolt-20000mah-power-bank',
-    title: '20,000mAh Power Bank',
-    clicks: 86,
-    createdAt: '2026-09-10'
-  },
-  {
-    code: 'cable',
-    targetPath: '/p/anker-powerline-iii-usb-c-cable',
-    title: 'Fast Charging Braided Cable',
-    clicks: 64,
-    createdAt: '2026-09-12'
-  },
-  {
-    code: 'offer',
-    targetPath: '/featured-products',
-    title: 'Special Featured Offers',
-    clicks: 215,
-    createdAt: '2026-09-15'
-  },
-  {
-    code: 'bundle',
-    targetPath: '/bundles',
-    title: 'Combo & Bundle Deals',
-    clicks: 178,
-    createdAt: '2026-09-18'
-  }
-];
+// Initial short links defaults to empty so only user-created links exist
+const INITIAL_SHORT_LINKS: ShortLinkItem[] = [];
 
 /**
  * Retrieves all registered short links from safeStorage.
@@ -149,7 +106,7 @@ export function getShortLinks(): ShortLinkItem[] {
     const raw = safeStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -157,6 +114,14 @@ export function getShortLinks(): ShortLinkItem[] {
     // fallback
   }
   return INITIAL_SHORT_LINKS;
+}
+
+/**
+ * Completely clears all registered short links.
+ */
+export function clearAllShortLinks(): ShortLinkItem[] {
+  safeStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  return [];
 }
 
 /**
@@ -219,43 +184,19 @@ export function incrementShortLinkClick(code: string): void {
 
 /**
  * Resolves a short link code (e.g. "airpods") to its destination path.
- * Searches:
- * 1. Registered short links table
- * 2. Exact match with any product's slug
- * 3. Partial keyword match with product names
+ * ONLY resolves links that are explicitly registered/created.
+ * Does NOT auto-generate or match unselected products in bulk.
  */
-export function resolveShortLink(rawCode: string, products: Product[]): string | null {
+export function resolveShortLink(rawCode: string, _products?: Product[]): string | null {
   if (!rawCode) return null;
   const cleanCode = slugify(rawCode);
 
-  // 1. Check registered short links
+  // Check ONLY explicitly registered short links
   const registered = getShortLinks();
   const match = registered.find(s => s.code.toLowerCase() === cleanCode.toLowerCase());
   if (match) {
     incrementShortLinkClick(match.code);
     return match.targetPath;
-  }
-
-  // 2. Check if the code directly matches a product slug
-  if (Array.isArray(products) && products.length > 0) {
-    const productBySlug = products.find(p => getProductSlug(p) === cleanCode);
-    if (productBySlug) {
-      return `/p/${getProductSlug(productBySlug)}`;
-    }
-
-    // 3. Check if the code matches product name keywords (e.g. 'airpods' matches 'AirPods Pro 2nd Gen')
-    const productByKeyword = products.find(p => {
-      const nameNorm = slugify(p.name);
-      return nameNorm.includes(cleanCode) || cleanCode.includes(nameNorm);
-    });
-    if (productByKeyword) {
-      return `/p/${getProductSlug(productByKeyword)}`;
-    }
-  }
-
-  // Special common alias fallbacks
-  if (cleanCode === 'airpods' || cleanCode === 'airpod') {
-    return '/p/airpods-pro-2nd-gen';
   }
 
   return null;
