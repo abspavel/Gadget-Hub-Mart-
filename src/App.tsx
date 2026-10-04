@@ -518,9 +518,63 @@ export default function App() {
     return `৳${Math.round(price || 0).toLocaleString('en-US')}`;
   };
 
+  // Automatically adjust product stock when products are purchased, cancelled, or returned
+  const adjustProductStock = (
+    items: Array<{ productId?: string; productName: string; quantity: number }>,
+    action: 'deduct' | 'restore'
+  ) => {
+    if (!items || items.length === 0) return;
+
+    setProducts((prevProducts) => {
+      let hasChanges = false;
+      const updatedProducts = prevProducts.map((prod) => {
+        const match = items.find(
+          (it) =>
+            (it.productId && it.productId === prod.id) ||
+            (it.productName && it.productName.trim().toLowerCase() === prod.name.trim().toLowerCase())
+        );
+
+        if (match) {
+          hasChanges = true;
+          const currentStock = prod.stockCount ?? 50;
+          const delta = match.quantity || 1;
+          const newStock = action === 'deduct' ? Math.max(0, currentStock - delta) : currentStock + delta;
+
+          // Asynchronously update Supabase database
+          getSupabase()
+            .then((supabase) => {
+              supabase
+                .from('products')
+                .update({ stock_count: newStock })
+                .eq('id', prod.id)
+                .then(({ error }) => {
+                  if (error) console.error('Supabase stock sync error:', error);
+                });
+            })
+            .catch(console.error);
+
+          return { ...prod, stockCount: newStock };
+        }
+        return prod;
+      });
+
+      if (hasChanges) {
+        safeStorage.setItem('ghm_products', JSON.stringify(updatedProducts));
+      }
+      return updatedProducts;
+    });
+  };
+
   // Add to cart from card or detail page
   const handleAddToCart = (product: Product, quantity = 1, color?: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+
+    // Check available stock
+    const currentStock = product.stockCount ?? 50;
+    if (currentStock <= 0) {
+      showToast(`দুঃখিত, "${product.name}" বর্তমানে স্টকে নেই!`);
+      return;
+    }
     
     // Fire Meta Pixel AddToCart event
     const priceInBdt = Math.round(product.price || 0);
@@ -538,10 +592,17 @@ export default function App() {
       );
       if (existingIndex > -1) {
         const next = [...prev];
-        next[existingIndex].quantity += quantity;
+        const newTotal = next[existingIndex].quantity + quantity;
+        if (newTotal > currentStock) {
+          next[existingIndex].quantity = currentStock;
+          showToast(`সর্বোচ্চ মজুদ স্টক (${currentStock} টি) কার্টে রয়েছে`);
+          return next;
+        }
+        next[existingIndex].quantity = newTotal;
         return next;
       } else {
-        return [...prev, { product, quantity, selectedColor: color }];
+        const safeQty = Math.min(quantity, currentStock);
+        return [...prev, { product, quantity: safeQty, selectedColor: color }];
       }
     });
 
@@ -646,10 +707,16 @@ export default function App() {
   };
 
   const handleUpdateCartQuantity = (productId: string, quantity: number, color?: string) => {
+    const prod = products.find((p) => p.id === productId);
+    const maxStock = prod ? (prod.stockCount ?? 50) : 999;
+    const safeQty = Math.min(Math.max(1, quantity), maxStock);
+    if (quantity > maxStock) {
+      showToast(`সর্বোচ্চ উপলব্ধ স্টক ${maxStock} টি`);
+    }
     setCart((prev) =>
       prev.map((item) => {
         const matches = color ? (item.product.id === productId && item.selectedColor === color) : item.product.id === productId;
-        return matches ? { ...item, quantity } : item;
+        return matches ? { ...item, quantity: safeQty } : item;
       })
     );
   };
@@ -968,6 +1035,7 @@ export default function App() {
               safeStorage.setItem('ghm_coupons', JSON.stringify(cps));
             }}
             currentCurrency={currentCurrency}
+            onAdjustStock={adjustProductStock}
           />
         )}
 
@@ -1060,6 +1128,9 @@ export default function App() {
               setOrders(updatedOrders);
               safeStorage.setItem('ghm_orders', JSON.stringify(updatedOrders));
               showToast(`Order #${id} confirmed successfully!`);
+
+              // Automatically deduct stock for bought items
+              adjustProductStock(orderDetails.items, 'deduct');
 
               try {
                 const supabase = await getSupabase();

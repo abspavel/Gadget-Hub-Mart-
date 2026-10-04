@@ -154,6 +154,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       items: items.map(i => ({ 
+        productId: i.product.id,
         productName: i.product.name, 
         quantity: i.quantity, 
         price: Math.round(i.product.price || 0),

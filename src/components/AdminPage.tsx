@@ -34,6 +34,7 @@ interface AdminPageProps {
   coupons: Coupon[];
   onUpdateCoupons: (coupons: Coupon[]) => void;
   currentCurrency: Currency;
+  onAdjustStock?: (items: Array<{ productId?: string; productName: string; quantity: number }>, action: 'deduct' | 'restore') => void;
 }
 
 export const AdminPage: React.FC<AdminPageProps> = ({
@@ -50,6 +51,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   onUpdateBanners,
   coupons,
   onUpdateCoupons,
+  onAdjustStock,
 }) => {
   // Secure Admin Authentication
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -316,12 +318,75 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const sentCourierOrdersCount = orders.filter(o => o.status === 'Sent to Courier').length;
   const deliveredOrdersCount = orders.filter(o => o.status === 'Delivered').length;
 
+  // Helper to adjust stock for product items
+  const handleAdjustStock = (
+    items: Array<{ productId?: string; productName: string; quantity: number }>,
+    action: 'deduct' | 'restore'
+  ) => {
+    if (onAdjustStock) {
+      onAdjustStock(items, action);
+      return;
+    }
+
+    if (!items || items.length === 0) return;
+    const updated = products.map((prod) => {
+      const match = items.find(
+        (it) =>
+          (it.productId && it.productId === prod.id) ||
+          (it.productName && it.productName.trim().toLowerCase() === prod.name.trim().toLowerCase())
+      );
+      if (match) {
+        const currentStock = prod.stockCount ?? 50;
+        const delta = match.quantity || 1;
+        const newStock = action === 'deduct' ? Math.max(0, currentStock - delta) : currentStock + delta;
+
+        // Sync to Supabase
+        Promise.resolve(
+          supabase
+            .from('products')
+            .update({ stock_count: newStock })
+            .eq('id', prod.id)
+        ).catch(console.error);
+
+        return { ...prod, stockCount: newStock };
+      }
+      return prod;
+    });
+
+    onUpdateProducts(updated);
+    safeStorage.setItem('ghm_products', JSON.stringify(updated));
+  };
+
   // ================= ORDER ACTIONS =================
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+    const existingOrder = orders.find((o) => o.id === orderId);
+    if (!existingOrder) return;
+    const oldStatus = existingOrder.status;
+
     const updated = orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
     onUpdateOrders(updated);
     safeStorage.setItem('ghm_orders', JSON.stringify(updated));
     showToast(`অর্ডার #${orderId} এর স্ট্যাটাস "${newStatus}" করা হয়েছে`);
+
+    // Automatic Stock Update:
+    // If order was cancelled, restore stock to products
+    if (newStatus === 'Cancelled' && oldStatus !== 'Cancelled') {
+      handleAdjustStock(existingOrder.items, 'restore');
+      showToast(`অর্ডার ক্যানসেল হওয়ায় স্টক স্বয়ংক্রিয়ভাবে ফেরত যোগ হয়েছে (+ রিস্টোর)`);
+    } 
+    // If order was previously cancelled and is now reactivated, deduct stock again
+    else if (oldStatus === 'Cancelled' && newStatus !== 'Cancelled') {
+      handleAdjustStock(existingOrder.items, 'deduct');
+      showToast(`অর্ডার পুনরায় সক্রিয় হওয়ায় স্টক স্বয়ংক্রিয়ভাবে কমেছে (- ডিডাক্ট)`);
+    }
+
+    try {
+      Promise.resolve(
+        supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+      ).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Steadfast Courier Dispatch Integration
@@ -391,11 +456,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         console.error('Supabase delete error:', e);
       }
     } else if (type === 'order') {
+      const existingOrder = orders.find((o) => o.id === id);
       const updated = orders.filter((o) => o.id !== id);
       onUpdateOrders(updated);
       safeStorage.setItem('ghm_orders', JSON.stringify(updated));
       showToast(`অর্ডার #${id} ডিলিট করা হয়েছে`);
       if (viewingOrder?.id === id) setViewingOrder(null);
+
+      // If deleted order was active, automatically restore stock to products
+      if (existingOrder && existingOrder.status !== 'Cancelled') {
+        handleAdjustStock(existingOrder.items, 'restore');
+      }
+
       try {
         await supabase.from('orders').delete().eq('id', id);
       } catch (e) {
@@ -1527,9 +1599,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                           <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded uppercase">
                             {p.category}
                           </span>
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                            স্টক: {p.stockCount ?? 50} টি
-                          </span>
+                          {(p.stockCount !== undefined && p.stockCount <= 0) ? (
+                            <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                              স্টক শেষ (০ টি)
+                            </span>
+                          ) : (p.stockCount ?? 50) <= 5 ? (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                              কম স্টক: {p.stockCount} টি
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                              স্টক: {p.stockCount ?? 50} টি
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-xs sm:text-sm font-bold text-white truncate" title={p.name}>
                           {p.name}

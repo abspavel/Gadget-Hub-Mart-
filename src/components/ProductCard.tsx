@@ -32,8 +32,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   );
   const [selectedColor, setSelectedColor] = useState<string>(colorList[0] || 'Default');
 
+  const isOutOfStock = product.stockCount !== undefined && product.stockCount <= 0;
+
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) return;
     onAddToCart(product, 1, selectedColor, e);
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 1200);
@@ -41,6 +44,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) return;
     onBuyNow(product, 1, selectedColor);
   };
 
@@ -66,6 +70,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             loading="lazy"
             decoding="async"
           />
+
+          {/* Out of Stock Overlay */}
+          {isOutOfStock && (
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl z-10">
+              <span className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                স্টক আউট
+              </span>
+            </div>
+          )}
 
           {/* Badge (Stock badges are strictly prevented from appearing on photos) */}
           {badge && (
@@ -141,14 +154,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="grid grid-cols-2 gap-1.5 pt-3 mt-2 border-t border-gray-100">
         <button
           onClick={handleCartClick}
-          className={`w-full text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 ${
-            addedAnimation
-              ? 'bg-emerald-600 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+          disabled={isOutOfStock}
+          className={`w-full text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all ${
+            isOutOfStock
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : addedAnimation
+              ? 'bg-emerald-600 text-white cursor-pointer active:scale-95'
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-800 cursor-pointer active:scale-95'
           }`}
-          title="কার্টে যোগ করুন"
+          title={isOutOfStock ? 'স্টক শেষ' : 'কার্টে যোগ করুন'}
         >
-          {addedAnimation ? (
+          {isOutOfStock ? (
+            <span>স্টক নেই</span>
+          ) : addedAnimation ? (
             <>
               <Check className="w-3.5 h-3.5 text-white" />
               <span>যোগ হয়েছে</span>
@@ -163,11 +181,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         <button
           onClick={handleBuyClick}
-          className="w-full bg-[#0a192f] hover:bg-blue-600 text-white text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 shadow-2xs"
-          title="এখনই অর্ডার করুন"
+          disabled={isOutOfStock}
+          className={`w-full text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs ${
+            isOutOfStock
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+              : 'bg-[#0a192f] hover:bg-blue-600 text-white cursor-pointer active:scale-95'
+          }`}
+          title={isOutOfStock ? 'স্টক শেষ' : 'এখনই অর্ডার করুন'}
         >
-          <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-          <span>Buy</span>
+          <Zap className={`w-3 h-3 ${isOutOfStock ? 'text-gray-400' : 'text-amber-400 fill-amber-400'}`} />
+          <span>{isOutOfStock ? 'শেষ' : 'Buy'}</span>
         </button>
       </div>
     </div>

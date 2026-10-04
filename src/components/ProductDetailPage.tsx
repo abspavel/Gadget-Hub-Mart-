@@ -213,12 +213,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
               {/* Stock Status & Warranty Badge */}
               <div className="flex items-center gap-2.5 flex-wrap pt-0.5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>
-                    স্টক: {product.stockCount !== undefined ? `${product.stockCount} টি মজুদ আছে` : 'স্টকে আছে (ইন স্টক)'}
-                  </span>
-                </div>
+                {(product.stockCount !== undefined && product.stockCount <= 0) ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>স্টক আউট (বর্তমানে স্টকে নেই)</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      স্টক: {product.stockCount !== undefined ? `${product.stockCount} টি মজুদ আছে` : 'স্টকে আছে (ইন স্টক)'}
+                    </span>
+                  </div>
+                )}
 
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100/80">
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
@@ -263,24 +270,30 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               )}
 
               {/* Quantity selector */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-bold text-gray-900">পরিমাণ (Quantity)</label>
-                <div className="inline-flex items-center rounded-xl bg-gray-100 p-1">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 rounded-lg bg-white shadow-2xs flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="w-12 text-center text-xs font-black text-gray-900">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="w-8 h-8 rounded-lg bg-white shadow-2xs flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+              {!(product.stockCount !== undefined && product.stockCount <= 0) && (
+                <div className="space-y-2 pt-2">
+                  <label className="block text-xs font-bold text-gray-900">পরিমাণ (Quantity)</label>
+                  <div className="inline-flex items-center rounded-xl bg-gray-100 p-1">
+                    <button
+                      type="button"
+                      disabled={quantity <= 1}
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="w-8 h-8 rounded-lg bg-white shadow-2xs flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-12 text-center text-xs font-black text-gray-900">{quantity}</span>
+                    <button
+                      type="button"
+                      disabled={product.stockCount !== undefined && quantity >= product.stockCount}
+                      onClick={() => setQuantity(prev => (product.stockCount !== undefined ? Math.min(product.stockCount, prev + 1) : prev + 1))}
+                      className="w-8 h-8 rounded-lg bg-white shadow-2xs flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
 
@@ -289,13 +302,18 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={handleAdd}
-                  className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
-                    addedAnim 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                  disabled={product.stockCount !== undefined && product.stockCount <= 0}
+                  className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-sm ${
+                    product.stockCount !== undefined && product.stockCount <= 0
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : addedAnim 
+                      ? 'bg-emerald-600 text-white cursor-pointer' 
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-900 cursor-pointer'
                   }`}
                 >
-                  {addedAnim ? (
+                  {product.stockCount !== undefined && product.stockCount <= 0 ? (
+                    <span>বর্তমানে স্টক আউট</span>
+                  ) : addedAnim ? (
                     <>
                       <Check className="w-4 h-4" />
                       <span>কার্টে যোগ হয়েছে!</span>
@@ -310,10 +328,21 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
                 <button
                   onClick={handleBuy}
-                  className="w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-98"
+                  disabled={product.stockCount !== undefined && product.stockCount <= 0}
+                  className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                    product.stockCount !== undefined && product.stockCount <= 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-98'
+                  }`}
                 >
-                  <Zap className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  <span>এখনই কিনুন (Buy Now)</span>
+                  {product.stockCount !== undefined && product.stockCount <= 0 ? (
+                    <span>স্টক শেষ</span>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span>এখনই কিনুন (Buy Now)</span>
+                    </>
+                  )}
                 </button>
               </div>
 
