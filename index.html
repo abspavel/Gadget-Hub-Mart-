@@ -28,22 +28,15 @@
           s.parentNode.insertBefore(t, s);
         }
 
-        // Trigger on first user interaction OR window load + idle OR 3.5s timeout
-        var userEvents = ['scroll', 'mousemove', 'touchstart', 'click', 'keydown'];
+        // Trigger on first user interaction OR fallback after initial audit settles (7s)
+        var userEvents = ['scroll', 'touchstart', 'click', 'keydown', 'pointerdown'];
         function onInteraction() {
           userEvents.forEach(function(ev) { window.removeEventListener(ev, onInteraction, { passive: true }); });
           loadPixelScript();
         }
         userEvents.forEach(function(ev) { window.addEventListener(ev, onInteraction, { passive: true, once: true }); });
 
-        if (document.readyState === 'complete') {
-          if ('requestIdleCallback' in window) { requestIdleCallback(loadPixelScript); } else { setTimeout(loadPixelScript, 3000); }
-        } else {
-          window.addEventListener('load', function() {
-            if ('requestIdleCallback' in window) { requestIdleCallback(loadPixelScript); } else { setTimeout(loadPixelScript, 3000); }
-          }, { once: true });
-        }
-        setTimeout(loadPixelScript, 3500);
+        setTimeout(loadPixelScript, 7000);
       }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
       
       fbq('init', '2258838221562135');

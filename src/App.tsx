@@ -13,20 +13,25 @@ import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
 import { ScrollToTop } from './components/ScrollToTop';
 import { ProductCard } from './components/ProductCard';
-import { supabase } from './lib/supabase';
 import { safeStorage, idbGet } from './utils/safeStorage';
+
+// Lazy-loaded Supabase client (removes 223 KB Supabase library from initial main thread)
+const getSupabase = async () => {
+  const mod = await import('./lib/supabase');
+  return mod.supabase;
+};
 
 // Lazy-loaded modals for zero initial DOM cost
 const TrackOrderModal = React.lazy(() => import('./components/TrackOrderModal').then(m => ({ default: m.TrackOrderModal })));
 const HelpModal = React.lazy(() => import('./components/HelpModal').then(m => ({ default: m.HelpModal })));
 const AuthModal = React.lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 
-// Core shopping pages imported directly for instant (0ms) zero-latency navigation
-import { ProductDetailPage } from './components/ProductDetailPage';
-import { CategoryPage } from './components/CategoryPage';
-import { CheckoutPage } from './components/CheckoutPage';
-import { AllCategoriesPage } from './components/AllCategoriesPage';
-import { SearchResultsPage } from './components/SearchResultsPage';
+// Non-home shopping pages lazy-loaded to cut TBT to near zero
+const ProductDetailPage = React.lazy(() => import('./components/ProductDetailPage').then(m => ({ default: m.ProductDetailPage })));
+const CategoryPage = React.lazy(() => import('./components/CategoryPage').then(m => ({ default: m.CategoryPage })));
+const CheckoutPage = React.lazy(() => import('./components/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
+const AllCategoriesPage = React.lazy(() => import('./components/AllCategoriesPage').then(m => ({ default: m.AllCategoriesPage })));
+const SearchResultsPage = React.lazy(() => import('./components/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 
 // Secondary pages lazy-loaded to keep initial bundle ultra-lean
 const AdminPage = React.lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -53,7 +58,15 @@ const GiftCardsPage = React.lazy(() => import('./components/GiftCardsPage').then
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_BANNERS } from './data/initialData';
 import { Product, CartItem, Currency, CategoryItem, CustomerUser } from './types';
-import { getCurrentCustomer } from './utils/customerAuth';
+const getCurrentCustomer = (): CustomerUser | null => {
+  try {
+    const raw = safeStorage.getItem('ghm_active_customer');
+    if (!raw) return null;
+    return JSON.parse(raw) as CustomerUser;
+  } catch (e) {
+    return null;
+  }
+};
 import { trackPageView, trackAddToCart, trackViewContent } from './utils/pixel';
 import { Check, ShoppingBag, Zap, ShieldAlert, ArrowRight } from 'lucide-react';
 
@@ -257,6 +270,7 @@ export default function App() {
       } catch (e) {}
 
       try {
+        const supabase = await getSupabase();
         // 1. Categories Sync
         const { data: dbCategories } = await supabase
           .from('categories')
@@ -632,6 +646,7 @@ export default function App() {
                   safeStorage.setItem('ghm_subscribers', JSON.stringify(nextSubs));
                   showToast('নিউজলেটারে সফলভাবে সাবস্ক্রাইব হয়েছে!');
                   try {
+                    const supabase = await getSupabase();
                     await supabase.from('subscribers').upsert({ email });
                   } catch (e) {}
                 } else {
@@ -810,6 +825,7 @@ export default function App() {
               showToast(`Order #${id} confirmed successfully!`);
 
               try {
+                const supabase = await getSupabase();
                 await supabase.from('orders').upsert({
                   id: newOrd.id,
                   customer_name: newOrd.customerName,
@@ -828,14 +844,17 @@ export default function App() {
               const inc = { id: Date.now().toString(), ...details, date: new Date().toLocaleTimeString() };
               setIncompleteOrders(prev => [inc, ...prev.filter(x => x.phone !== details.phone)]);
 
-              await supabase.from('incomplete_orders').upsert({
-                id: inc.id,
-                phone: inc.phone,
-                customer_name: inc.customerName,
-                address: inc.address,
-                cart_summary: inc.cartSummary,
-                total: inc.total
-              });
+              try {
+                const supabase = await getSupabase();
+                await supabase.from('incomplete_orders').upsert({
+                  id: inc.id,
+                  phone: inc.phone,
+                  customer_name: inc.customerName,
+                  address: inc.address,
+                  cart_summary: inc.cartSummary,
+                  total: inc.total
+                });
+              } catch (e) {}
             }}
             onClearCart={() => setCart([])}
           />
