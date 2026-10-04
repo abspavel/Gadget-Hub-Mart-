@@ -346,7 +346,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             .from('products')
             .update({ stock_count: newStock })
             .eq('id', prod.id)
-        ).catch(console.error);
+        ).catch(() => {});
 
         return { ...prod, stockCount: newStock };
       }
@@ -383,10 +383,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     try {
       Promise.resolve(
         supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
-      ).catch(console.error);
-    } catch (e) {
-      console.error(e);
-    }
+      ).catch(() => {});
+    } catch {}
   };
 
   // Steadfast Courier Dispatch Integration

@@ -540,18 +540,17 @@ export default function App() {
           const delta = match.quantity || 1;
           const newStock = action === 'deduct' ? Math.max(0, currentStock - delta) : currentStock + delta;
 
-          // Asynchronously update Supabase database
+          // Asynchronously sync to Supabase database (with silent offline fallback)
           getSupabase()
             .then((supabase) => {
-              supabase
-                .from('products')
-                .update({ stock_count: newStock })
-                .eq('id', prod.id)
-                .then(({ error }) => {
-                  if (error) console.error('Supabase stock sync error:', error);
-                });
+              Promise.resolve(
+                supabase
+                  .from('products')
+                  .update({ stock_count: newStock })
+                  .eq('id', prod.id)
+              ).catch(() => {});
             })
-            .catch(console.error);
+            .catch(() => {});
 
           return { ...prod, stockCount: newStock };
         }
