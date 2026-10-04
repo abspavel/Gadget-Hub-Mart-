@@ -85,11 +85,6 @@ export const Footer: React.FC<FooterProps> = ({
                   Bundles
                 </button>
               </li>
-              <li>
-                <button onClick={() => onNavigateView('gift-cards')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Gift Cards
-                </button>
-              </li>
             </ul>
           </div>
 
@@ -120,11 +115,6 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigateView('warranty-policy')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Warranty Policy
-                </button>
-              </li>
-              <li>
                 <button onClick={() => onNavigateView('contact-us')} className="hover:text-white transition-colors cursor-pointer text-left">
                   Contact Us
                 </button>
@@ -151,11 +141,6 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button onClick={() => onNavigateView('press')} className="hover:text-white transition-colors cursor-pointer text-left">
                   Press
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigateView('affiliates')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Affiliates
                 </button>
               </li>
               <li>
