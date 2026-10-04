@@ -22,11 +22,7 @@
   font-family: var(--font-hand);
 }
 
-/* Content visibility optimization for below-the-fold sections */
-.content-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 600px;
-}
+
 
 /* GPU-accelerated smooth marquee without JS forced reflows */
 @keyframes marquee-scroll {

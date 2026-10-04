@@ -209,15 +209,6 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('home');
   const [activeCategory, setActiveCategory] = useState<string>('All');
-  const [isReadyForBelowFold, setIsReadyForBelowFold] = useState(false);
-
-  useEffect(() => {
-    // Yield to main thread after initial paint to keep long tasks under 50ms (0ms TBT)
-    const t = setTimeout(() => {
-      setIsReadyForBelowFold(true);
-    }, 10);
-    return () => clearTimeout(t);
-  }, []);
   
   const categoriesList = ['All', ...categories.map(c => c.label || c.id)];
 
@@ -587,8 +578,8 @@ export default function App() {
               onShopAudio={() => handleSelectCategory('Audio')}
             />
 
-            {/* 5. All Products Section (content-auto for instant initial layout) */}
-            <div id="all-products" className="py-8 bg-white content-auto">
+            {/* 5. All Products Section */}
+            <div id="all-products" className="py-8 bg-white">
               <div className="max-w-7xl mx-auto px-4 sm:px-8 space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl sm:text-[28px] font-black text-gray-950 tracking-tight">
@@ -606,7 +597,7 @@ export default function App() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
-                  {products.slice(0, isReadyForBelowFold ? 24 : 4).map((prod, pIdx) => (
+                  {products.slice(0, 24).map((prod, pIdx) => (
                     <ProductCard
                       key={`${prod.id}-${pIdx}`}
                       product={prod}
@@ -620,12 +611,12 @@ export default function App() {
             </div>
 
             {/* 6. Travel Collection / Banner */}
-            <div className="content-auto">
+            <div>
               <TravelCollectionBanner onShopTravel={() => handleSelectCategory('Smart Accessories')} />
             </div>
 
             {/* 7. Best Sellers & Bundle Section */}
-            <div className="content-auto">
+            <div>
               <BestSellersAndBundle
                 products={products}
                 onSelectProduct={handleSelectProduct}
@@ -641,10 +632,10 @@ export default function App() {
             </div>
 
             {/* 8. Customer Reviews & Newsletter */}
-            <div className="content-auto">
+            <div>
               <CustomerReviewsSlider />
             </div>
-            <div className="content-auto">
+            <div>
               <ValuePropsAndNewsletter
               onSubscribe={async (email) => {
                 const emailList = subscribers.map(s => typeof s === 'string' ? s : s.email);
