@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { INITIAL_BANNERS } from '../data/initialData';
 
 interface Banner {
   id: string;
@@ -16,21 +17,18 @@ interface HeroSectionProps {
 export const HeroSection: React.FC<HeroSectionProps> = ({ onShopNow, banners }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  const mainBanners = banners.filter(b => b.type === 'main');
-  const offerBanners = banners.filter(b => b.type === 'offer');
+  const effectiveBanners = (banners && banners.length > 0) ? banners : INITIAL_BANNERS;
+  const mainBanners = effectiveBanners.filter(b => b.type === 'main');
+  const offerBanners = effectiveBanners.filter(b => b.type === 'offer');
 
-  // Fallback if banners array is empty or lacks specific types
+  // Fallback uses user's actual uploaded banner from initialData
   const activeMainBanner = mainBanners.length > 0 
     ? mainBanners[mainBanners.length - 1].imageUrl 
-    : (banners.length > 0 ? banners[0].imageUrl : 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1800&q=80');
+    : (INITIAL_BANNERS.find(b => b.type === 'main')?.imageUrl || INITIAL_BANNERS[0]?.imageUrl);
 
   const slides = offerBanners.length > 0 
     ? offerBanners 
-    : (banners.length > 1 ? banners.slice(1) : [
-        { id: '1', title: 'Offer 1', imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=1600&q=80', type: 'offer' },
-        { id: '2', title: 'Offer 2', imageUrl: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=1600&q=80', type: 'offer' },
-        { id: '3', title: 'Offer 3', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1600&q=80', type: 'offer' }
-      ]);
+    : INITIAL_BANNERS.filter(b => b.type === 'offer');
 
   useEffect(() => {
     if (slides.length <= 1) return;

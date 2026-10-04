@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { CATEGORIES as DEFAULT_CATEGORIES } from '../data/products';
+import { INITIAL_CATEGORIES as DEFAULT_CATEGORIES } from '../data/initialData';
 import { Currency, CategoryItem } from '../types';
 
 interface AllCategoriesPageProps {

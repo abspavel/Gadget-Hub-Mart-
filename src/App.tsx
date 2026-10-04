@@ -47,6 +47,7 @@ import { SecurityPage } from './components/SecurityPage';
 import { ProfilePage } from './components/ProfilePage';
 
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
+import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_BANNERS } from './data/initialData';
 import { Product, CartItem, Currency, CategoryItem, CustomerUser } from './types';
 import { getCurrentCustomer } from './utils/customerAuth';
 import { trackPageView, trackAddToCart, trackViewContent } from './utils/pixel';
@@ -171,10 +172,10 @@ export default function App() {
       const saved = safeStorage.getItem('ghm_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return deduplicateProducts(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateProducts(parsed);
       }
     } catch (e) {}
-    return deduplicateProducts(ALL_PRODUCTS);
+    return deduplicateProducts(INITIAL_PRODUCTS);
   });
 
   const [categories, setCategories] = useState<CategoryItem[]>(() => {
@@ -182,10 +183,10 @@ export default function App() {
       const saved = safeStorage.getItem('ghm_categories');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return deduplicateCategories(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateCategories(parsed);
       }
     } catch (e) {}
-    return deduplicateCategories(CATEGORIES);
+    return deduplicateCategories(INITIAL_CATEGORIES);
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -220,12 +221,12 @@ export default function App() {
   const [banners, setBanners] = useState<any[]>(() => {
     try {
       const saved = safeStorage.getItem('ghm_banners');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {}
-    return [
-      { id: '1', title: 'Main Hero Banner', imageUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1800&q=80', type: 'main' },
-      { id: '2', title: 'Flash Sale Banner', imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=1600&q=80', type: 'offer' }
-    ];
+    return INITIAL_BANNERS;
   });
 
   const [coupons, setCoupons] = useState<any[]>(() => {
@@ -252,7 +253,7 @@ export default function App() {
       } catch (e) {}
 
       try {
-        // 1. Categories Sync & Merge
+        // 1. Categories Sync
         const { data: dbCategories } = await supabase
           .from('categories')
           .select('*')
@@ -265,14 +266,12 @@ export default function App() {
             imageUrl: c.image_url || c.imageUrl,
             description: c.description
           }));
-          setCategories((prev) => {
-            const merged = deduplicateCategories([...loadedCats, ...prev]);
-            safeStorage.setItem('ghm_categories', JSON.stringify(merged));
-            return merged;
-          });
+          const dedupedCats = deduplicateCategories(loadedCats);
+          setCategories(dedupedCats);
+          safeStorage.setItem('ghm_categories', JSON.stringify(dedupedCats));
         }
 
-        // 2. Products Sync & Merge
+        // 2. Products Sync
         const { data: dbProducts } = await supabase
           .from('products')
           .select('*')
@@ -304,14 +303,12 @@ export default function App() {
             isTravel: p.is_travel,
             sections: p.sections || ['All Products']
           }));
-          setProducts((prev) => {
-            const merged = deduplicateProducts([...loadedProds, ...prev]);
-            safeStorage.setItem('ghm_products', JSON.stringify(merged));
-            return merged;
-          });
+          const dedupedProds = deduplicateProducts(loadedProds);
+          setProducts(dedupedProds);
+          safeStorage.setItem('ghm_products', JSON.stringify(dedupedProds));
         }
 
-        // 3. Banners Sync & Merge
+        // 3. Banners Sync
         const { data: dbBanners } = await supabase
           .from('banners')
           .select('*')
@@ -326,18 +323,8 @@ export default function App() {
             type: b.type,
             isActive: b.is_active ?? true
           }));
-          setBanners((prev) => {
-            const map = new Map<string, any>();
-            loadedBanners.forEach(b => map.set(b.id, b));
-            prev.forEach(b => {
-              if (b.id.startsWith('banner-') && !map.has(b.id)) {
-                map.set(b.id, b);
-              }
-            });
-            const merged = Array.from(map.values());
-            safeStorage.setItem('ghm_banners', JSON.stringify(merged));
-            return merged;
-          });
+          setBanners(loadedBanners);
+          safeStorage.setItem('ghm_banners', JSON.stringify(loadedBanners));
         }
       } catch (err) {
         console.log('Initial data sync note:', err);
