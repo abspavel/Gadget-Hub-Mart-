@@ -12,12 +12,23 @@ export const FB_PIXEL_ID = '2258838221562135';
  */
 export const trackPixelEvent = (event: string, params?: Record<string, any>) => {
   try {
-    if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+    if (typeof window === 'undefined') return;
+    if (typeof window.fbq === 'function') {
       if (params) {
         window.fbq('track', event, params);
       } else {
         window.fbq('track', event);
       }
+    } else {
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+          if (params) {
+            window.fbq('track', event, params);
+          } else {
+            window.fbq('track', event);
+          }
+        }
+      }, 250);
     }
   } catch (err) {
     console.debug('Pixel track error:', err);
