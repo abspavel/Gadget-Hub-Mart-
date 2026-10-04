@@ -62,6 +62,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             alt={product.name}
             className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            decoding="async"
           />
 
           {/* Badge (Stock badges are strictly prevented from appearing on photos) */}

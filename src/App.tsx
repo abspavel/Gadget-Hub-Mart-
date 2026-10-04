@@ -14,7 +14,6 @@ import { CartDrawer } from './components/CartDrawer';
 import { TrackOrderModal } from './components/TrackOrderModal';
 import { HelpModal } from './components/HelpModal';
 import { AuthModal } from './components/AuthModal';
-import { AdminPage } from './components/AdminPage';
 import { AllCategoriesPage } from './components/AllCategoriesPage';
 import { FeaturedProductsPage } from './components/FeaturedProductsPage';
 import { AllProductsPage } from './components/AllProductsPage';
@@ -31,20 +30,23 @@ import { CheckoutPage } from './components/CheckoutPage';
 
 import { NewArrivalsPage } from './components/NewArrivalsPage';
 import { BundlesPage } from './components/BundlesPage';
-import { GiftCardsPage } from './components/GiftCardsPage';
-import { TrackOrderPage } from './components/TrackOrderPage';
-import { HelpCenterPage } from './components/HelpCenterPage';
-import { ShippingReturnsPage } from './components/ShippingReturnsPage';
-import { WarrantyPolicyPage } from './components/WarrantyPolicyPage';
 import { ContactUsPage } from './components/ContactUsPage';
-import { AboutUsPage } from './components/AboutUsPage';
-import { CareersPage } from './components/CareersPage';
-import { PressPage } from './components/PressPage';
-import { AffiliatesPage } from './components/AffiliatesPage';
-import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
-import { TermsOfServicePage } from './components/TermsOfServicePage';
-import { SecurityPage } from './components/SecurityPage';
 import { ProfilePage } from './components/ProfilePage';
+
+// Lazy-loaded heavy pages for sub-second initial paint and 0ms blocking time
+const AdminPage = React.lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
+const AboutUsPage = React.lazy(() => import('./components/AboutUsPage').then(m => ({ default: m.AboutUsPage })));
+const CareersPage = React.lazy(() => import('./components/CareersPage').then(m => ({ default: m.CareersPage })));
+const PressPage = React.lazy(() => import('./components/PressPage').then(m => ({ default: m.PressPage })));
+const AffiliatesPage = React.lazy(() => import('./components/AffiliatesPage').then(m => ({ default: m.AffiliatesPage })));
+const PrivacyPolicyPage = React.lazy(() => import('./components/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const TermsOfServicePage = React.lazy(() => import('./components/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
+const SecurityPage = React.lazy(() => import('./components/SecurityPage').then(m => ({ default: m.SecurityPage })));
+const WarrantyPolicyPage = React.lazy(() => import('./components/WarrantyPolicyPage').then(m => ({ default: m.WarrantyPolicyPage })));
+const ShippingReturnsPage = React.lazy(() => import('./components/ShippingReturnsPage').then(m => ({ default: m.ShippingReturnsPage })));
+const HelpCenterPage = React.lazy(() => import('./components/HelpCenterPage').then(m => ({ default: m.HelpCenterPage })));
+const TrackOrderPage = React.lazy(() => import('./components/TrackOrderPage').then(m => ({ default: m.TrackOrderPage })));
+const GiftCardsPage = React.lazy(() => import('./components/GiftCardsPage').then(m => ({ default: m.GiftCardsPage })));
 
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_BANNERS } from './data/initialData';
@@ -513,8 +515,8 @@ export default function App() {
         />
       )}
 
-      {/* 3. Main Content Router */}
       <main className="flex-1">
+        <React.Suspense fallback={<div className="min-h-[40vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         {currentView === 'home' && (
           <div className="space-y-4">
             {/* 1. Hero Section (Two Banners) */}
@@ -992,6 +994,7 @@ export default function App() {
             }}
           />
         )}
+        </React.Suspense>
       </main>
 
       {/* 4. Footer (Hidden on Admin page) */}

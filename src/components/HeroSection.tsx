@@ -46,6 +46,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onShopNow, banners }) 
           src={activeMainBanner}
           alt="Gadget Hub Mart Banner"
           className="w-full h-full object-cover object-center filter brightness-95"
+          fetchPriority="high"
+          decoding="async"
         />
       </div>
 
@@ -62,6 +64,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onShopNow, banners }) 
               src={slide.imageUrl}
               alt={slide.title}
               className="absolute inset-0 w-full h-full object-cover filter brightness-90"
+              loading={idx === 0 ? 'eager' : 'lazy'}
+              decoding="async"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
