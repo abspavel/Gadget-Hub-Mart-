@@ -60,6 +60,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <img
             src={product.imageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80'}
             alt={product.name}
+            width="400"
+            height="400"
             className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
             decoding="async"

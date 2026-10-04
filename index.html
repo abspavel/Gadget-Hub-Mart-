@@ -4,16 +4,48 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- Meta (Facebook) Pixel Base Code - Top of Head (ID: 2258838221562135) -->
+    <!-- Meta (Facebook) Pixel Stub (Zero Blocking - Defers fbevents.js network download until idle/interaction) -->
     <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
+      !function(f,b,e,v,n,t,s) {
+        if(f.fbq) return;
+        n = f.fbq = function() {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if(!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = !1;
+        n.version = '2.0';
+        n.queue = [];
+
+        var scriptLoaded = false;
+        function loadPixelScript() {
+          if (scriptLoaded) return;
+          scriptLoaded = true;
+          t = b.createElement(e);
+          t.async = true;
+          t.src = v;
+          s = b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t, s);
+        }
+
+        // Trigger on first user interaction OR window load + idle OR 3.5s timeout
+        var userEvents = ['scroll', 'mousemove', 'touchstart', 'click', 'keydown'];
+        function onInteraction() {
+          userEvents.forEach(function(ev) { window.removeEventListener(ev, onInteraction, { passive: true }); });
+          loadPixelScript();
+        }
+        userEvents.forEach(function(ev) { window.addEventListener(ev, onInteraction, { passive: true, once: true }); });
+
+        if (document.readyState === 'complete') {
+          if ('requestIdleCallback' in window) { requestIdleCallback(loadPixelScript); } else { setTimeout(loadPixelScript, 3000); }
+        } else {
+          window.addEventListener('load', function() {
+            if ('requestIdleCallback' in window) { requestIdleCallback(loadPixelScript); } else { setTimeout(loadPixelScript, 3000); }
+          }, { once: true });
+        }
+        setTimeout(loadPixelScript, 3500);
+      }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      
       fbq('init', '2258838221562135');
       fbq('track', 'PageView');
     </script>
@@ -145,19 +177,21 @@
       />
     </noscript>
     <div id="root">
-      <!-- Instant pre-paint markup for ~0.2s First Contentful Paint -->
-      <div id="pre-paint-skeleton" style="min-height:100vh;background:#0b1329;color:#ffffff;font-family:'Plus Jakarta Sans',system-ui,sans-serif;">
-        <nav style="height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;max-width:1400px;margin:0 auto;border-bottom:1px solid rgba(255,255,255,0.08);">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;">GH</div>
-            <span style="font-weight:700;font-size:1.15rem;letter-spacing:-0.02em;">Gadget Hub Mart</span>
-          </div>
-          <div style="width:100px;height:34px;background:rgba(255,255,255,0.08);border-radius:9999px;"></div>
-        </nav>
-        <div style="max-width:1400px;margin:1.25rem auto;padding:0 1rem;">
-          <div style="height:260px;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:24px;border:1px solid rgba(255,255,255,0.05);"></div>
+      <!-- Plain <img> in initial HTML for Instant Sub-Second LCP without JS delay -->
+      <section id="hero" style="width:100%;background:#ffffff;overflow:hidden;border-bottom:1px solid #f1f5f9;padding:8px 12px 16px;">
+        <div style="position:relative;width:100%;max-width:1400px;margin:0 auto;aspect-ratio:21/9;max-height:320px;min-height:160px;border-radius:16px;overflow:hidden;background:#f1f5f9;">
+          <img
+            src="/images/asset_11.webp"
+            alt="Gadget Hub Mart Banner"
+            width="1200"
+            height="514"
+            style="width:100%;height:100%;object-fit:cover;object-position:center;"
+            fetchpriority="high"
+            loading="eager"
+            decoding="async"
+          />
         </div>
-      </div>
+      </section>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

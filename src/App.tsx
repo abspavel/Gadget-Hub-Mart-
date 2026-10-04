@@ -11,13 +11,15 @@ import { CustomerReviewsSlider } from './components/CustomerReviewsSlider';
 import { ValuePropsAndNewsletter } from './components/ValuePropsAndNewsletter';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
-import { TrackOrderModal } from './components/TrackOrderModal';
-import { HelpModal } from './components/HelpModal';
-import { AuthModal } from './components/AuthModal';
 import { ScrollToTop } from './components/ScrollToTop';
 import { ProductCard } from './components/ProductCard';
 import { supabase } from './lib/supabase';
 import { safeStorage, idbGet } from './utils/safeStorage';
+
+// Lazy-loaded modals for zero initial DOM cost
+const TrackOrderModal = React.lazy(() => import('./components/TrackOrderModal').then(m => ({ default: m.TrackOrderModal })));
+const HelpModal = React.lazy(() => import('./components/HelpModal').then(m => ({ default: m.HelpModal })));
+const AuthModal = React.lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 
 // Core shopping pages imported directly for instant (0ms) zero-latency navigation
 import { ProductDetailPage } from './components/ProductDetailPage';
@@ -332,7 +334,14 @@ export default function App() {
         console.log('Initial data sync note:', err);
       }
     };
-    fetchInitialData();
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = (window as any).requestIdleCallback(fetchInitialData, { timeout: 2500 });
+      return () => (window as any).cancelIdleCallback?.(idleId);
+    } else {
+      const timer = setTimeout(fetchInitialData, 1500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // Meta Pixel PageView tracking on view/route changes
@@ -555,8 +564,8 @@ export default function App() {
               onShopAudio={() => handleSelectCategory('Audio')}
             />
 
-            {/* 5. All Products Section */}
-            <div id="all-products" className="py-8 bg-white">
+            {/* 5. All Products Section (content-auto for instant initial layout) */}
+            <div id="all-products" className="py-8 bg-white content-auto">
               <div className="max-w-7xl mx-auto px-4 sm:px-8 space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl sm:text-[28px] font-black text-gray-950 tracking-tight">
@@ -588,25 +597,32 @@ export default function App() {
             </div>
 
             {/* 6. Travel Collection / Banner */}
-            <TravelCollectionBanner onShopTravel={() => handleSelectCategory('Smart Accessories')} />
+            <div className="content-auto">
+              <TravelCollectionBanner onShopTravel={() => handleSelectCategory('Smart Accessories')} />
+            </div>
 
             {/* 7. Best Sellers & Bundle Section */}
-            <BestSellersAndBundle
-              products={products}
-              onSelectProduct={handleSelectProduct}
-              onAddToCart={handleAddToCart}
-              onBuyNow={(prod, qty, col) => handleBuyNow(prod, qty, col)}
-              onShopBundles={() => handleSelectCategory('Adapters & Hubs')}
-              onViewAllBestSellers={() => {
-                setCurrentView('best-sellers');
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
-              currentCurrency={currentCurrency}
-            />
+            <div className="content-auto">
+              <BestSellersAndBundle
+                products={products}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onBuyNow={(prod, qty, col) => handleBuyNow(prod, qty, col)}
+                onShopBundles={() => handleSelectCategory('Adapters & Hubs')}
+                onViewAllBestSellers={() => {
+                  setCurrentView('best-sellers');
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                }}
+                currentCurrency={currentCurrency}
+              />
+            </div>
 
             {/* 8. Customer Reviews & Newsletter */}
-            <CustomerReviewsSlider />
-            <ValuePropsAndNewsletter
+            <div className="content-auto">
+              <CustomerReviewsSlider />
+            </div>
+            <div className="content-auto">
+              <ValuePropsAndNewsletter
               onSubscribe={async (email) => {
                 const emailList = subscribers.map(s => typeof s === 'string' ? s : s.email);
                 if (!emailList.includes(email)) {
@@ -623,6 +639,7 @@ export default function App() {
                 }
               }}
             />
+            </div>
           </div>
         )}
 
@@ -1021,40 +1038,54 @@ export default function App() {
       )}
 
       {/* Cart Drawer */}
-      <CartDrawer
-        isOpen={cartOpen}
-        onClose={() => setCartOpen(false)}
-        items={cart}
-        onUpdateQuantity={handleUpdateCartQuantity}
-        onRemoveItem={handleRemoveFromCart}
-        onProceedToCheckout={() => {
-          setCartOpen(false);
-          setCurrentView('checkout');
-          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-        }}
-        currentCurrency={currentCurrency}
-      />
+      {cartOpen && (
+        <CartDrawer
+          isOpen={cartOpen}
+          onClose={() => setCartOpen(false)}
+          items={cart}
+          onUpdateQuantity={handleUpdateCartQuantity}
+          onRemoveItem={handleRemoveFromCart}
+          onProceedToCheckout={() => {
+            setCartOpen(false);
+            setCurrentView('checkout');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+          currentCurrency={currentCurrency}
+        />
+      )}
 
       {/* Track Order Modal */}
-      <TrackOrderModal
-        isOpen={trackOrderOpen}
-        onClose={() => setTrackOrderOpen(false)}
-      />
+      {trackOrderOpen && (
+        <React.Suspense fallback={null}>
+          <TrackOrderModal
+            isOpen={trackOrderOpen}
+            onClose={() => setTrackOrderOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Help / Support Modal */}
-      <HelpModal
-        isOpen={helpOpen}
-        onClose={() => setHelpOpen(false)}
-      />
+      {helpOpen && (
+        <React.Suspense fallback={null}>
+          <HelpModal
+            isOpen={helpOpen}
+            onClose={() => setHelpOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Auth Modal */}
-      <AuthModal
-        isOpen={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onSuccess={(name) => {
-          showToast(`Welcome back, ${name}!`);
-        }}
-      />
+      {authOpen && (
+        <React.Suspense fallback={null}>
+          <AuthModal
+            isOpen={authOpen}
+            onClose={() => setAuthOpen(false)}
+            onSuccess={(name) => {
+              showToast(`Welcome back, ${name}!`);
+            }}
+          />
+        </React.Suspense>
+      )}
 
       {/* Floating Toast Notification */}
       {toastMessage && (

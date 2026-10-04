@@ -49,7 +49,11 @@ export const ShopByCategory: React.FC<ShopByCategoryProps> = ({
                 <img
                   src={cat.imageUrl}
                   alt={cat.label}
+                  width="136"
+                  height="136"
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 filter brightness-90"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 {/* Dark gradient overlay */}

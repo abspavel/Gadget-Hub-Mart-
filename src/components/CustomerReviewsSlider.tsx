@@ -95,7 +95,6 @@ export const CustomerReviewsSlider: React.FC<CustomerReviewsSliderProps> = ({
 }) => {
   const [reviews, setReviews] = useState<CustomerReviewItem[]>(INITIAL_REVIEWS);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   // New review form state
   const [newAuthor, setNewAuthor] = useState('');
@@ -104,29 +103,6 @@ export const CustomerReviewsSlider: React.FC<CustomerReviewsSliderProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newComment, setNewComment] = useState('');
   const [newProduct, setNewProduct] = useState('FlexaGear 65W GaN Charger');
-
-  // Auto-slide side-by-side marquee effect
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-
-    let animationFrameId: number;
-    const speed = 0.8; // pixels per frame
-
-    const step = () => {
-      if (scroller) {
-        scroller.scrollLeft += speed;
-        if (scroller.scrollLeft >= scroller.scrollWidth / 2) {
-          scroller.scrollLeft = 0;
-        }
-      }
-      animationFrameId = requestAnimationFrame(step);
-    };
-
-    animationFrameId = requestAnimationFrame(step);
-
-    return () => cancelAnimationFrame(animationFrameId);
-  }, []);
 
   const handleUpvote = (id: string) => {
     setReviews(prev => prev.map(r => {
@@ -223,13 +199,9 @@ export const CustomerReviewsSlider: React.FC<CustomerReviewsSliderProps> = ({
         </div>
       </div>
 
-      {/* Horizontal Auto-Sliding Marquee (Side-by-side, No rigid boxed grid cards) */}
+      {/* Horizontal Auto-Sliding Marquee (GPU-accelerated CSS, zero reflows) */}
       <div className="mt-8 relative w-full overflow-hidden">
-        <div
-          ref={scrollRef}
-          className="flex items-center gap-6 overflow-x-hidden whitespace-nowrap py-4 select-none px-4"
-          style={{ scrollBehavior: 'auto' }}
-        >
+        <div className="animate-marquee flex items-center gap-6 py-4 select-none px-4">
           {duplicatedReviews.map((rev, index) => (
             <div
               key={`${rev.id}-${index}`}

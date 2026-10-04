@@ -8,9 +8,10 @@ export default defineConfig({
     tailwindcss(),
   ],
   build: {
-    target: 'esnext',
+    target: 'es2020',
     minify: 'esbuild',
     cssMinify: true,
+    reportCompressedSize: false,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
