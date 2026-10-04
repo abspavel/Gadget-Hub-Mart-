@@ -99,6 +99,50 @@ export const INITIAL_BANNERS: Banner[] = [
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
+    "id": "airpods-pro-2nd-gen",
+    "name": "AirPods Pro 2nd Gen Wireless Earbuds",
+    "slug": "airpods-pro-2nd-gen",
+    "category": "Audio",
+    "price": 2850,
+    "originalPrice": 3500,
+    "stockCount": 50,
+    "rating": 4.9,
+    "reviewCount": 48,
+    "imageUrl": "/images/asset_92.webp",
+    "images": [
+      "/images/asset_92.webp",
+      "/images/asset_93.webp",
+      "/images/asset_94.webp"
+    ],
+    "colors": ["White"],
+    "shortDescription": "Active Noise Cancellation (ANC), Transparency mode, Personalized Spatial Audio, and MagSafe Charging Case (USB-C).",
+    "fullDescription": "AirPods Pro 2nd Gen offers up to 2x more Active Noise Cancellation, Adaptive Audio, and Transparency mode. Premium high-fidelity audio with deep bass and crystal-clear high notes.",
+    "description": "AirPods Pro 2nd Gen offers up to 2x more Active Noise Cancellation, Adaptive Audio, and Transparency mode.",
+    "warranty": "",
+    "features": [
+      "Active Noise Cancellation (ANC) & Transparency mode",
+      "MagSafe Wireless Charging Case with USB-C",
+      "Touch control for volume and media playback",
+      "IP54 sweat and water resistant"
+    ],
+    "specs": {
+      "material": "High-Gloss Polycarbonate & Silicone Ear Tips",
+      "dimensions": "45.2 × 60.6 × 21.7 mm",
+      "compatibility": "iOS, Android, Mac, PC",
+      "warranty": ""
+    },
+    "isFeatured": true,
+    "isBestSeller": true,
+    "isNewArrival": true,
+    "isBundle": false,
+    "isTravel": false,
+    "sections": [
+      "All Products",
+      "Best Sellers",
+      "Featured Products"
+    ]
+  },
+  {
     "id": "prod-1791085730658",
     "name": "Test ",
     "category": "Camera",

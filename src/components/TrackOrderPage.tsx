@@ -128,7 +128,7 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ onBack, orders }
               </div>
               <div className="flex justify-between border-t border-gray-200/60 pt-2 font-bold text-gray-900">
                 <span>সর্বমোট পরিশোধযোগ্য:</span>
-                <span className="text-blue-600 text-sm">৳{Math.round(foundOrder.total * 120 || 0).toLocaleString()}</span>
+                <span className="text-blue-600 text-sm">৳{Math.round(foundOrder.total || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>

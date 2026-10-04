@@ -24,14 +24,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   if (!isOpen) return null;
 
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-  const rawSubtotalUsd = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const subtotal = items.reduce((acc, item) => acc + Math.round(item.product.price || 0) * item.quantity, 0);
 
-  const formatPrice = (priceInUsd: number) => {
-    const converted = priceInUsd * currentCurrency.rate;
-    if (currentCurrency.code === 'BDT') {
-      return `${currentCurrency.symbol}${Math.round(converted).toLocaleString()}`;
-    }
-    return `${currentCurrency.symbol}${converted.toFixed(2)}`;
+  const formatPrice = (amount: number) => {
+    return `৳${Math.round(amount || 0).toLocaleString('en-US')}`;
   };
 
   return (
@@ -103,10 +99,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </h4>
                         <button
                           onClick={() => onRemoveItem(item.product.id)}
-                          className="text-gray-400 hover:text-red-500 p-0.5 transition-colors cursor-pointer shrink-0"
-                          title="Remove item"
+                          className="text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                          title="কার্ট থেকে পণ্যটি ডিলিট করুন"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
@@ -119,8 +115,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center bg-white border border-gray-200 rounded-lg">
                           <button
-                            onClick={() => onUpdateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                            className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-l-lg cursor-pointer"
+                            onClick={() => item.quantity <= 1 ? onRemoveItem(item.product.id) : onUpdateQuantity(item.product.id, item.quantity - 1)}
+                            className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-red-600 rounded-l-lg cursor-pointer"
+                            title={item.quantity <= 1 ? "পণ্যটি ডিলিট করুন" : "পরিমাণ কমান"}
                           >
                             <Minus className="w-2.5 h-2.5" />
                           </button>
@@ -152,7 +149,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div className="space-y-1.5 text-xs text-gray-600">
                 <div className="flex justify-between">
                   <span>সাবটোটাল</span>
-                  <span className="font-bold text-gray-900 tabular-nums">{formatPrice(rawSubtotalUsd)}</span>
+                  <span className="font-bold text-gray-900 tabular-nums">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-[11px] text-gray-500">
                   <span>ডেলিভারি চার্জ</span>
@@ -160,7 +157,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
                 <div className="pt-2 border-t border-gray-100 flex justify-between text-sm font-bold text-gray-900">
                   <span>মোট (ডেলিভারি ছাড়া)</span>
-                  <span className="text-base text-blue-600 tabular-nums">{formatPrice(rawSubtotalUsd)}</span>
+                  <span className="text-base text-blue-600 tabular-nums">{formatPrice(subtotal)}</span>
                 </div>
               </div>
 

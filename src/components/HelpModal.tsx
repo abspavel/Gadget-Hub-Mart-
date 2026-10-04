@@ -60,11 +60,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
             <div className="flex items-center gap-2 font-bold text-gray-900">
-              <ShieldCheck className="w-4 h-4 text-amber-600" />
-              <span>Device Warranty Coverage</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>১০০% আসল ও প্রিমিয়াম গ্যাজেট নিশ্চয়তা</span>
             </div>
             <p className="text-gray-600 leading-relaxed pl-6">
-              All chargers, cables, audio, and hubs come with a minimum 2-year manufacturer warranty against electrical defects and build quality.
+              আমাদের সকল গ্যাজেট ও অ্যাক্সেসরিজ ব্র্যান্ড অরিজিনাল এবং ডেলিভারির সময় চেক করে রিসিভ করার সুবিধা রয়েছে।
             </p>
           </div>
         </div>
@@ -73,11 +73,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         <div className="mt-6 pt-5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 text-gray-600">
             <Mail className="w-4 h-4 text-gray-500" />
-            <span>support@gadgethubmart.com</span>
+            <a href="mailto:mrmiahctg07@gmail.com" className="hover:text-blue-600 font-medium">mrmiahctg07@gmail.com</a>
           </div>
           <div className="flex items-center gap-2 text-gray-600">
             <Phone className="w-4 h-4 text-gray-500" />
-            <span>+1 (800) 423-4327 (24/7 Support)</span>
+            <a href="tel:01886306837" className="hover:text-blue-600 font-medium">01886306837 (হটলাইন)</a>
           </div>
         </div>
       </div>

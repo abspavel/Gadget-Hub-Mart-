@@ -7,10 +7,17 @@ import {
   Mail, Image, Plus, Trash2, Edit, Check, X, KeyRound, RefreshCw, 
   Truck, Users, ArrowLeft, Search, PhoneCall, ExternalLink, Eye, EyeOff,
   ChevronRight, Upload, Ticket, ShieldCheck, Zap, Lock, LogOut, ShieldAlert,
-  CheckCircle2, Clock, Globe, Copy, Info, AlertTriangle, Layers, Send, Download
+  CheckCircle2, Clock, Globe, Copy, Info, AlertTriangle, Layers, Send, Download,
+  Link2, Share2
 } from 'lucide-react';
 import { formatBdtPrice } from './ProductCard';
 import { downloadOrderInvoice } from '../utils/invoiceGenerator';
+import { slugify, getProductSlug } from '../utils/slug';
+import { 
+  getShortLinks, saveShortLink, deleteShortLink, ShortLinkItem,
+  getSavedCustomDomain, setSavedCustomDomain, getEffectiveShortDomain,
+  normalizeDomain, buildShortUrl, buildCanonicalProductUrl, DEFAULT_SHORT_DOMAIN
+} from '../utils/shortLinks';
 
 interface AdminPageProps {
   onBack: () => void;
@@ -85,8 +92,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'products' | 'categories' | 'banners' | 'coupons' | 'customers' | 'subscribers' | 'steadfast'
+    'overview' | 'orders' | 'products' | 'categories' | 'banners' | 'coupons' | 'customers' | 'subscribers' | 'steadfast' | 'shortlinks'
   >('overview');
+
+  // Short Links State & Custom Domain
+  const [shortLinks, setShortLinks] = useState<ShortLinkItem[]>(() => getShortLinks());
+  const [customShortDomain, setCustomShortDomainState] = useState<string>(() => getSavedCustomDomain() || DEFAULT_SHORT_DOMAIN);
+  const [isShortLinkModalOpen, setIsShortLinkModalOpen] = useState(false);
+  const [newShortCode, setNewShortCode] = useState('');
+  const [newShortTarget, setNewShortTarget] = useState('');
+  const [newShortTitle, setNewShortTitle] = useState('');
+
+  const effectiveDomain = useMemo(() => {
+    return customShortDomain.trim() ? normalizeDomain(customShortDomain) : getEffectiveShortDomain();
+  }, [customShortDomain]);
+
+  const handleSaveCustomDomain = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const normalized = customShortDomain.trim() ? normalizeDomain(customShortDomain) : DEFAULT_SHORT_DOMAIN;
+    setCustomShortDomainState(normalized);
+    setSavedCustomDomain(normalized);
+    showToast(`কাস্টম ডোমেইন সফলভাবে সংরক্ষিত: ${normalized}`);
+  };
+
+  const handleResetCustomDomain = () => {
+    setCustomShortDomainState(DEFAULT_SHORT_DOMAIN);
+    setSavedCustomDomain(DEFAULT_SHORT_DOMAIN);
+    showToast(`ডিফল্ট ডোমেইন সেট করা হয়েছে: ${DEFAULT_SHORT_DOMAIN}`);
+  };
 
   // Search & Filters
   const [productSearch, setProductSearch] = useState('');
@@ -128,13 +161,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [prodName, setProdName] = useState('');
+  const [prodSlug, setProdSlug] = useState('');
   const [prodCategory, setProdCategory] = useState('');
   const [prodPrice, setProdPrice] = useState<number>(0);
   const [prodOriginalPrice, setProdOriginalPrice] = useState<number>(0);
   const [prodStock, setProdStock] = useState<number>(50);
   const [prodShortDesc, setProdShortDesc] = useState('');
   const [prodFullDesc, setProdFullDesc] = useState('');
-  const [prodWarranty, setProdWarranty] = useState('১ বছরের অফিসিয়াল রিপ্লেসমেন্ট ওয়ারেন্টি');
+  const [prodWarranty, setProdWarranty] = useState('');
   const [prodImageUrl, setProdImageUrl] = useState('');
   const [prodImages, setProdImages] = useState<string[]>([]);
 
@@ -388,13 +422,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     if (prod) {
       setEditingProduct(prod);
       setProdName(prod.name);
+      setProdSlug(prod.slug || slugify(prod.name) || slugify(prod.id));
       setProdCategory(prod.category);
       setProdPrice(prod.price);
       setProdOriginalPrice(prod.originalPrice || 0);
       setProdStock(prod.stockCount ?? 50);
       setProdShortDesc(prod.shortDescription || prod.description || '');
       setProdFullDesc(prod.fullDescription || prod.description || '');
-      setProdWarranty(prod.warranty || prod.specs?.warranty || '১ বছরের অফিসিয়াল রিপ্লেসমেন্ট ওয়ারেন্টি');
+      setProdWarranty(prod.warranty || prod.specs?.warranty || '');
       const existingImgs = prod.images && prod.images.length > 0 ? prod.images : (prod.imageUrl ? [prod.imageUrl] : []);
       setProdImages(existingImgs);
       setProdImageUrl(prod.imageUrl || existingImgs[0] || '');
@@ -408,13 +443,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     } else {
       setEditingProduct(null);
       setProdName('');
+      setProdSlug('');
       setProdCategory(categories[0]?.label || categories[0]?.id || 'Charging');
       setProdPrice(1500);
       setProdOriginalPrice(1800);
       setProdStock(50);
       setProdShortDesc('');
       setProdFullDesc('');
-      setProdWarranty('১ বছরের অফিসিয়াল রিপ্লেসমেন্ট ওয়ারেন্টি');
+      setProdWarranty('');
       const defaultImg = 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80';
       setProdImages([defaultImg]);
       setProdImageUrl(defaultImg);
@@ -438,6 +474,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
     const shortD = prodShortDesc.trim() || `${prodName} - প্রিমিয়াম কোয়ালিটি এক্সেসরিজ।`;
     const fullD = prodFullDesc.trim() || shortD;
+    const cleanSlug = prodSlug.trim() ? slugify(prodSlug) : (slugify(prodName) || `prod-${Date.now()}`);
 
     const sectionsList: string[] = ['All Products'];
     if (prodSecBestSeller) sectionsList.push('Best Sellers');
@@ -453,6 +490,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     const updatedProduct: Product = {
       id: editingProduct ? editingProduct.id : `prod-${Date.now()}`,
       name: prodName,
+      slug: cleanSlug,
       category: prodCategory,
       price: Number(prodPrice),
       originalPrice: prodOriginalPrice > 0 ? Number(prodOriginalPrice) : undefined,
@@ -733,6 +771,53 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     });
   };
 
+  // ================= SHORT LINK ACTIONS =================
+  const handleSaveShortLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newShortCode.trim()) {
+      showToast('শর্ট কোড (Code) লিখুন');
+      return;
+    }
+    if (!newShortTarget.trim()) {
+      showToast('টার্গেট প্রোডাক্ট বা লিঙ্ক নির্বাচন করুন');
+      return;
+    }
+
+    const cleanCode = slugify(newShortCode);
+    let target = newShortTarget.trim();
+    if (!target.startsWith('/')) {
+      target = `/${target}`;
+    }
+
+    const updated = saveShortLink({
+      code: cleanCode,
+      targetPath: target,
+      title: newShortTitle.trim() || `${cleanCode} Marketing Link`
+    });
+
+    setShortLinks(updated);
+    showToast(`শর্ট লিংক /s/${cleanCode} সফলভাবে সংরক্ষিত হয়েছে!`);
+    setIsShortLinkModalOpen(false);
+    setNewShortCode('');
+    setNewShortTarget('');
+    setNewShortTitle('');
+  };
+
+  const handleDeleteShortLinkItem = (code: string) => {
+    const updated = deleteShortLink(code);
+    setShortLinks(updated);
+    showToast(`শর্ট লিংক /s/${code} মুছে ফেলা হয়েছে!`);
+  };
+
+  const handleQuickCreateProductShortLink = (prod: Product) => {
+    const slug = getProductSlug(prod);
+    const shortCode = slug.split('-').slice(0, 2).join('-') || slug;
+    setNewShortCode(shortCode);
+    setNewShortTarget(`/p/${slug}`);
+    setNewShortTitle(`${prod.name} Promo Link`);
+    setIsShortLinkModalOpen(true);
+  };
+
   // ================= SECURE ADMIN LOGIN SCREEN =================
   if (!isAuthenticated) {
     return (
@@ -1002,6 +1087,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               <Mail className="w-3.5 h-3.5 shrink-0" />
               <span>নিউজলেটার (Newsletter)</span>
               <span className="ml-1 text-[10px] text-slate-400 font-bold bg-slate-800/80 px-1.5 py-0.5 rounded-full">{subscribers.length}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('shortlinks')}
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'shortlinks'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              <Link2 className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+              <span>শর্ট লিংক (Short Links)</span>
+              <span className="ml-1 text-[10px] text-cyan-400 font-bold bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">{shortLinks.length}</span>
             </button>
 
           </nav>
@@ -1436,10 +1534,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px]">
-                      <div className="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">
-                        ওয়ারেন্টি: {p.warranty || p.specs?.warranty || '১ বছর'}
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        ১০০% আসল ও প্রিমিয়াম
                       </div>
                       <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            const slug = getProductSlug(p);
+                            const cleanUrl = buildCanonicalProductUrl(slug, effectiveDomain);
+                            navigator.clipboard.writeText(cleanUrl);
+                            showToast(`ক্লিন প্রোডাক্ট লিংক কপি হয়েছে: ${cleanUrl}`);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          title="ফেসবুক মার্কেটিং এর জন্য পরিষ্কার লিংক কপি (/p/slug)"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleQuickCreateProductShortLink(p)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-cyan-600 text-cyan-300 hover:text-white transition-colors cursor-pointer"
+                          title="১ লাইনের শর্ট লিংক তৈরি করুন (/s/code)"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => openProductModal(p)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -1883,6 +2000,176 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             </div>
           )}
 
+          {/* ================= 10. TAB: MARKETING SHORT LINKS & URL SANITIZER ================= */}
+          {activeTab === 'shortlinks' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              
+              {/* Top Banner & Info */}
+              <div className="bg-[#111c38] p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <Link2 className="w-4 h-4" />
+                      </span>
+                      <h3 className="text-base font-extrabold text-white">
+                        মার্কেটিং শর্ট লিংক ও কাস্টম ডোমেইন ম্যানেজমেন্ট
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      ফেসবুক বিজ্ঞাপন, মেসেঞ্জার ও সোশ্যাল মিডিয়ায় শেয়ার করার জন্য ১ লাইনের শর্ট লিংক (/s/:code)
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setNewShortCode('');
+                      setNewShortTarget('');
+                      setNewShortTitle('');
+                      setIsShortLinkModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>নতুন শর্ট লিংক তৈরি করুন</span>
+                  </button>
+                </div>
+
+                {/* Custom Domain Configuration Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#0d162d] border border-cyan-500/30 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-cyan-400" />
+                        <span>কাস্টম ডোমেইন (Custom Domain - ঐচ্ছিক)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        শর্ট লিংক তৈরির জন্য আপনার আসল ডোমেইন বা ক্লাউডফ্লেয়ার ডোমেইন নির্ধারণ করুন।
+                      </p>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 font-mono text-[11px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="truncate max-w-[200px] sm:max-w-xs">{effectiveDomain}</span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveCustomDomain} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={customShortDomain}
+                        onChange={(e) => setCustomShortDomainState(e.target.value)}
+                        placeholder="https://gadget-hub-mart.mrmiahctg07.workers.dev"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm active:scale-95 transition-all shrink-0"
+                    >
+                      ডোমেইন সেভ করুন
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetCustomDomain}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-all shrink-0"
+                      title="ডিফল্ট Workers ডোমেইনে রিসেট করুন"
+                    >
+                      রিসেট
+                    </button>
+                  </form>
+
+                  <div className="text-[11px] text-slate-400 flex items-center gap-2 pt-0.5">
+                    <span className="text-emerald-400 font-bold">✓ ১ লাইনের লিংক প্রিভিউ:</span>
+                    <span className="text-cyan-300 font-mono">{effectiveDomain}/s/airpods</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Short Links List */}
+              <div className="bg-[#111c38] rounded-3xl border border-slate-800 overflow-hidden shadow-sm space-y-3 p-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                    সক্রিয় শর্ট লিংকসমূহ ({shortLinks.length} টি)
+                  </h4>
+                  <span className="text-[10px] text-slate-400">
+                    লিংক কপি করে সরাসরি ফেসবুক পোস্ট, এড বা মেসেঞ্জারে ব্যবহার করুন
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-800/80">
+                  {shortLinks.map((item) => {
+                    const fullShortUrl = buildShortUrl(item.code, effectiveDomain);
+                    const targetProduct = products.find(p => `/p/${getProductSlug(p)}` === item.targetPath || p.id === item.targetPath.replace(/^\/p\//, ''));
+                    return (
+                      <div key={item.code} className="py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 hover:bg-slate-900/40 px-3 rounded-2xl transition-colors">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-mono font-bold text-xs">
+                              {fullShortUrl}
+                            </span>
+                            <span className="text-slate-400 text-xs">➔</span>
+                            <span className="text-xs font-mono text-slate-300 truncate max-w-xs">
+                              {item.targetPath}
+                            </span>
+                            {item.clicks !== undefined && (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-emerald-400 font-bold">
+                                {item.clicks} টি ক্লিক
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                            <span>{item.title || `${item.code} প্রচার লিংক`}</span>
+                            {targetProduct && (
+                              <span className="text-slate-500 font-medium">
+                                • {targetProduct.name} ({formatBdtPrice(targetProduct.price)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(fullShortUrl);
+                              showToast(`১ লাইনের শর্ট লিংক কপি হয়েছে: ${fullShortUrl}`);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 text-slate-200 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                            title="১ লাইনের শর্ট লিংক কপি"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>কপি শর্ট লিংক</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              window.open(`/s/${item.code}`, '_blank');
+                            }}
+                            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                            title="নতুন ট্যাবে টেস্ট করুন"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteShortLinkItem(item.code)}
+                            className="p-1.5 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                            title="শর্ট লিংক মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -2168,37 +2455,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 </div>
               </div>
 
-              {/* WARRANTY OPTION */}
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  ওয়ারেন্টি পলিসি (Warranty)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={prodWarranty}
-                    onChange={(e) => setProdWarranty(e.target.value)}
-                    placeholder="যেমন: ১ বছরের অফিসিয়াল রিপ্লেসমেন্ট ওয়ারেন্টি"
-                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
-                  />
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setProdWarranty('৬ মাসের রিপ্লেসমেন্ট ওয়ারেন্টি')}
-                      className="px-2 py-1 text-[10px] rounded-lg bg-slate-800 text-slate-300 hover:text-white"
-                    >
-                      ৬ মাস
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProdWarranty('১ বছরের অফিসিয়াল রিপ্লেসমেন্ট ওয়ারেন্টি')}
-                      className="px-2 py-1 text-[10px] rounded-lg bg-slate-800 text-slate-300 hover:text-white"
-                    >
-                      ১ বছর
-                    </button>
-                  </div>
-                </div>
-              </div>
+
 
               {/* KEY FEATURES LIST */}
               <div className="space-y-2">
@@ -2610,6 +2867,139 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold"
                 >
                   কুপন তৈরি করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: ADD SHORT LINK ================= */}
+      {isShortLinkModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-2xs flex items-center justify-center p-4">
+          <div className="bg-[#111c38] border border-cyan-500/30 w-full max-w-md rounded-3xl p-6 space-y-4 text-white shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                  <Link2 className="w-4 h-4" />
+                </span>
+                <h3 className="text-base font-extrabold text-white">নতুন মার্কেটিং শর্ট লিংক</h3>
+              </div>
+              <button
+                onClick={() => setIsShortLinkModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveShortLink} className="space-y-4 text-xs">
+              
+              {/* Select from existing products */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  টার্গেট প্রোডাক্ট নির্বাচন করুন (Quick Select)
+                </label>
+                <select
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const p = products.find(x => x.id === selId);
+                    if (p) {
+                      const slug = getProductSlug(p);
+                      setNewShortTarget(`/p/${slug}`);
+                      if (!newShortCode) {
+                        const code = slug.split('-').slice(0, 2).join('-') || slug;
+                        setNewShortCode(code);
+                      }
+                      if (!newShortTitle) {
+                        setNewShortTitle(`${p.name} Campaign`);
+                      }
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  <option value="">-- স্টোরের প্রোডাক্ট তালিকা থেকে বাছাই করুন --</option>
+                  {products.map((p, idx) => (
+                    <option key={`${p.id}-${idx}`} value={p.id}>
+                      {p.name} ({formatBdtPrice(p.price)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Path */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  টার্গেট পাথ (Target Path) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newShortTarget}
+                  onChange={(e) => setNewShortTarget(e.target.value)}
+                  placeholder="যেমন: /p/airpods-pro-2nd-gen বা /bundles"
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              {/* Short Code */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  শর্ট কোড (Short Code) <span className="text-red-400">*</span>
+                </label>
+                <div className="flex items-center rounded-xl bg-slate-900 border border-slate-700 overflow-hidden">
+                  <span className="px-3 text-slate-500 font-mono font-bold">/s/</span>
+                  <input
+                    type="text"
+                    required
+                    value={newShortCode}
+                    onChange={(e) => setNewShortCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    placeholder="airpods"
+                    className="w-full py-2.5 pr-3 bg-transparent text-white font-mono font-bold focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  শুধুমাত্র ছোট হাতের ইংরেজি ও হাইফেন (যেমন: airpods, charger, offer)
+                </p>
+              </div>
+
+              {/* Title / Campaign */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">প্রচার ক্যাম্পেইন নাম (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={newShortTitle}
+                  onChange={(e) => setNewShortTitle(e.target.value)}
+                  placeholder="যেমন: ফেসবুক বুস্টিং ক্যাম্পেইন ১"
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              {/* Live Preview Card */}
+              {newShortCode && (
+                <div className="p-3 bg-[#0d162d] rounded-2xl border border-cyan-500/30 space-y-1">
+                  <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">লাইভ প্রিভিউ (১ লাইনের শর্ট লিংক):</span>
+                  <div className="text-xs font-mono text-white flex items-center gap-1.5 flex-wrap">
+                    <span className="text-cyan-300 font-bold">{buildShortUrl(newShortCode, effectiveDomain)}</span>
+                    <span className="text-slate-400">➔</span>
+                    <span className="text-slate-300">{newShortTarget || '/p/...'}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsShortLinkModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer shadow-md active:scale-95"
+                >
+                  শর্ট লিংক সংরক্ষণ করুন
                 </button>
               </div>
             </form>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, CheckCircle2, Copy, Check, Truck, 
-  MapPin, User, Phone, Package, Tag, Lock, Download, Printer, Home
+  MapPin, User, Phone, Package, Tag, Lock, Download, Printer, Home,
+  Trash2, Plus, Minus, ShoppingBag
 } from 'lucide-react';
 import { CartItem, Currency, Coupon } from '../types';
 import { getCurrentCustomer } from '../utils/customerAuth';
@@ -12,6 +13,8 @@ interface CheckoutPageProps {
   items: CartItem[];
   currentCurrency: Currency;
   onBack: () => void;
+  onRemoveItem?: (productId: string, color?: string) => void;
+  onUpdateQuantity?: (productId: string, quantity: number, color?: string) => void;
   onOrderSuccess: (orderId: string, orderDetails: { 
     customerName: string; 
     phone: string; 
@@ -39,6 +42,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   items,
   currentCurrency,
   onBack,
+  onRemoveItem,
+  onUpdateQuantity,
   onOrderSuccess,
   onIncompleteOrder,
   onClearCart,
@@ -72,30 +77,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
   }, [step]);
 
-  // Delivery charge: Inside Dhaka = 80 BDT, Outside Dhaka = 120 BDT
-  const deliveryChargeInBdt = deliveryZone === 'inside' ? 80 : 120;
-  const deliveryChargeInUsd = deliveryChargeInBdt / 120;
+  // Delivery charge in BDT: Inside Dhaka = 80 BDT, Outside Dhaka = 120 BDT
+  const deliveryCharge = deliveryZone === 'inside' ? 80 : 120;
 
-  const rawSubtotalUsd = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  // Subtotal in BDT: exact sum of (price * quantity)
+  const subtotal = items.reduce((acc, item) => acc + Math.round(item.product.price || 0) * item.quantity, 0);
 
-  // Discount calculation
-  let discountUsd = 0;
+  // Discount calculation in BDT
+  let discount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.discountPercentage) {
-      discountUsd = (rawSubtotalUsd * appliedCoupon.discountPercentage) / 100;
+      discount = Math.round((subtotal * appliedCoupon.discountPercentage) / 100);
     } else if (appliedCoupon.discountAmount) {
-      discountUsd = appliedCoupon.discountAmount / 120;
+      discount = Math.round(appliedCoupon.discountAmount);
     }
   }
 
-  const grandTotalUsd = Math.max(0, rawSubtotalUsd - discountUsd + deliveryChargeInUsd);
+  // Grand Total in BDT: Subtotal - Discount + Delivery Charge
+  const grandTotal = Math.max(0, subtotal - discount + deliveryCharge);
 
-  const formatPrice = (priceInUsd: number) => {
-    const converted = priceInUsd * currentCurrency.rate;
-    if (currentCurrency.code === 'BDT') {
-      return `${currentCurrency.symbol}${Math.round(converted).toLocaleString()}`;
-    }
-    return `${currentCurrency.symbol}${converted.toFixed(2)}`;
+  const formatPrice = (amount: number) => {
+    return `৳${Math.round(amount || 0).toLocaleString('en-US')}`;
   };
 
   // Track incomplete orders when phone number is provided
@@ -107,10 +109,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         customerName: name || 'গেস্ট কাস্টমার',
         address: `${address}, ${thana}, ${city}`.replace(/(,\s*)+/g, ', ').trim(),
         cartSummary,
-        total: grandTotalUsd
+        total: grandTotal
       });
     }
-  }, [phone, name, address, thana, city, grandTotalUsd]);
+  }, [phone, name, address, thana, city, grandTotal]);
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,18 +146,18 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       thana: thana.trim(),
       city: city.trim(),
       deliveryZone: deliveryZone === 'inside' ? 'Inside Dhaka (৳80)' : 'Outside Dhaka (৳120)',
-      deliveryChargeBdt: deliveryChargeInBdt,
-      subtotalBdt: Math.round(rawSubtotalUsd * currentCurrency.rate),
-      discountBdt: Math.round(discountUsd * currentCurrency.rate),
-      totalBdt: Math.round(grandTotalUsd * currentCurrency.rate),
-      total: grandTotalUsd,
+      deliveryChargeBdt: deliveryCharge,
+      subtotalBdt: subtotal,
+      discountBdt: discount,
+      totalBdt: grandTotal,
+      total: grandTotal,
       date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       items: items.map(i => ({ 
         productName: i.product.name, 
         quantity: i.quantity, 
-        price: i.product.price,
-        priceBdt: Math.round(i.product.price * currentCurrency.rate),
+        price: Math.round(i.product.price || 0),
+        priceBdt: Math.round(i.product.price || 0),
         selectedColor: i.selectedColor,
         imageUrl: i.product.imageUrl || (i.product.images && i.product.images[0])
       }))
@@ -166,7 +168,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     // Fire Meta Pixel Purchase Event (Value & Currency: BDT)
     trackPurchase({
       orderId: generatedId,
-      value: orderData.totalBdt,
+      value: grandTotal,
       currency: 'BDT',
       items: orderData.items.map(it => ({
         name: it.productName,
@@ -183,8 +185,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       thana: orderData.thana,
       city: orderData.city,
       deliveryZone: orderData.deliveryZone,
-      total: grandTotalUsd,
-      items: orderData.items
+      total: grandTotal,
+      items: orderData.items,
+      discount
     });
 
     onClearCart();
@@ -293,7 +296,31 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     );
   }
 
-  // ================= 2. PURE MINIMAL SLEEK CHECKOUT FORM =================
+  // ================= 2. EMPTY CART VIEW =================
+  if (items.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] pt-12 pb-20 px-3.5 sm:px-6 font-sans">
+        <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200/80 p-8 text-center space-y-4 shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+            <ShoppingBag className="w-8 h-8" />
+          </div>
+          <h2 className="text-base sm:text-lg font-black text-slate-900">আপনার কার্টে কোনো পণ্য নেই</h2>
+          <p className="text-xs text-slate-500">
+            চেকআউট করার জন্য অনুগ্রহ করে কিছু পণ্য কার্টে যুক্ত করুন।
+          </p>
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all cursor-pointer shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>শপিংয়ে ফিরে যান</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= 3. PURE MINIMAL SLEEK CHECKOUT FORM =================
   return (
     <div className="min-h-screen bg-[#f8fafc] pt-4 pb-20 px-3.5 sm:px-6 font-sans">
       <div className="max-w-3xl mx-auto space-y-4">
@@ -448,12 +475,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               অর্ডার বিবরণ ({items.length}টি পণ্য)
             </h2>
 
-            {/* Compact Item Rows */}
-            <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+            {/* Compact Item Rows with Delete Option */}
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1 divide-y divide-slate-100">
               {items.map((item, idx) => (
-                <div key={`${item.product.id}-${idx}`} className="flex items-center justify-between gap-3 text-xs">
+                <div key={`${item.product.id}-${item.selectedColor || ''}-${idx}`} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
                       {item.product.imageUrl || (item.product.images && item.product.images[0]) ? (
                         <img
                           src={item.product.imageUrl || (item.product.images && item.product.images[0])}
@@ -466,14 +493,59 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     </div>
                     <div className="min-w-0">
                       <p className="font-bold text-slate-900 truncate">{item.product.name}</p>
-                      <p className="text-[10px] text-slate-500">
-                        {item.quantity}টি {item.selectedColor ? `• ${item.selectedColor}` : ''}
-                      </p>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                        <span>{formatPrice(item.product.price)}</span>
+                        {item.selectedColor && <span>• {item.selectedColor}</span>}
+                      </div>
+
+                      {/* Quantity & Delete Controls */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="inline-flex items-center bg-slate-100 rounded-lg border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.quantity <= 1) {
+                                onRemoveItem?.(item.product.id, item.selectedColor);
+                              } else {
+                                onUpdateQuantity?.(item.product.id, item.quantity - 1, item.selectedColor);
+                              }
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-rose-600 cursor-pointer"
+                            title={item.quantity <= 1 ? "পণ্যটি ডিলিট করুন" : "পরিমাণ কমান"}
+                          >
+                            <Minus className="w-2.5 h-2.5" />
+                          </button>
+                          <span className="w-5 text-center text-[10px] font-bold text-slate-900 tabular-nums">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onUpdateQuantity?.(item.product.id, item.quantity + 1, item.selectedColor)}
+                            className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-blue-600 cursor-pointer"
+                            title="পরিমাণ বাড়ান"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <span className="font-bold text-slate-900 shrink-0">
-                    {formatPrice(item.product.price * item.quantity)}
-                  </span>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="font-extrabold text-slate-900 text-xs">
+                      {formatPrice(item.product.price * item.quantity)}
+                    </span>
+                    {onRemoveItem && (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveItem(item.product.id, item.selectedColor)}
+                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="পণ্যটি ডিলিট করুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -509,21 +581,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
               <div className="flex justify-between">
                 <span>পণ্যের মূল্য:</span>
-                <span className="font-bold text-slate-900">{formatPrice(rawSubtotalUsd)}</span>
+                <span className="font-bold text-slate-900">{formatPrice(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span>ডেলিভারি চার্জ:</span>
-                <span className="font-bold text-slate-900">{formatPrice(deliveryChargeInUsd)}</span>
+                <span className="font-bold text-slate-900">{formatPrice(deliveryCharge)}</span>
               </div>
-              {discountUsd > 0 && (
+              {discount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>ডিসকাউন্ট:</span>
-                  <span>-{formatPrice(discountUsd)}</span>
+                  <span>-{formatPrice(discount)}</span>
                 </div>
               )}
               <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline text-sm font-black text-slate-900">
                 <span>সর্বমোট প্রদেয় মূল্য:</span>
-                <span className="text-lg text-blue-600">{formatPrice(grandTotalUsd)}</span>
+                <span className="text-lg text-blue-600">{formatPrice(grandTotal)}</span>
               </div>
             </div>
 
@@ -534,7 +606,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               className="w-full py-4 bg-[#0a192f] hover:bg-blue-600 text-white font-black text-sm rounded-2xl transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Lock className="w-4 h-4 text-emerald-400" />
-              <span>অর্ডার কনফার্ম করুন • {formatPrice(grandTotalUsd)}</span>
+              <span>অর্ডার কনফার্ম করুন • {formatPrice(grandTotal)}</span>
             </button>
 
             <p className="text-[11px] text-slate-400 text-center">

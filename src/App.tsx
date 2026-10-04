@@ -69,10 +69,15 @@ const getCurrentCustomer = (): CustomerUser | null => {
 };
 import { trackPageView, trackAddToCart, trackViewContent } from './utils/pixel';
 import { Check, ShoppingBag, Zap, ShieldAlert, ArrowRight } from 'lucide-react';
+import { cleanTrackingParameters } from './utils/urlCleaner';
+import { getProductSlug, findProductBySlug, ensureProductSlugs, slugify } from './utils/slug';
+import { resolveShortLink } from './utils/shortLinks';
+import { ProductNotFoundPage } from './components/ProductNotFoundPage';
 
-type ViewState =
+export type ViewState =
   | 'home'
   | { type: 'product'; product: Product }
+  | { type: '404'; attemptedSlug?: string }
   | { type: 'category'; categoryName: string }
   | { type: 'search'; query: string }
   | 'all-categories'
@@ -183,16 +188,121 @@ const deduplicateProducts = (prods: Product[]): Product[] => {
   return out;
 };
 
+export const getPathForView = (view: ViewState): string => {
+  if (view === 'home') return '/';
+  if (typeof view === 'string') return `/${view}`;
+  if (view.type === 'product') return `/p/${getProductSlug(view.product)}`;
+  if (view.type === '404') return view.attemptedSlug ? `/p/${view.attemptedSlug}` : '/404';
+  if (view.type === 'category') return `/category/${slugify(view.categoryName)}`;
+  if (view.type === 'search') return `/search?q=${encodeURIComponent(view.query)}`;
+  return '/';
+};
+
+export const resolveViewFromUrl = (prods: Product[]): ViewState => {
+  if (typeof window === 'undefined') return 'home';
+
+  // 1. Clean tracking parameters immediately (fbclid, aem, utm_*, etc.)
+  cleanTrackingParameters();
+
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  const searchParams = new URLSearchParams(window.location.search);
+
+  // 2. Marketing short links: /s/:code (e.g. /s/airpods -> /p/airpods-pro-2nd-gen)
+  if (pathname.startsWith('/s/')) {
+    const code = pathname.slice(3).trim();
+    if (code) {
+      const target = resolveShortLink(code, prods);
+      if (target) {
+        window.history.replaceState(null, '', target);
+        if (target.startsWith('/p/')) {
+          const targetSlug = target.slice(3).trim();
+          const found = findProductBySlug(prods, targetSlug);
+          if (found) return { type: 'product', product: found };
+        }
+        const cleanView = target.replace(/^\//, '');
+        if (cleanView) return cleanView as ViewState;
+      }
+      return { type: '404', attemptedSlug: code };
+    }
+  }
+
+  // 3. Product path-based routes: /p/:slug or /product/:slug (e.g. /p/airpods-pro-2nd-gen)
+  let productSlug: string | null = null;
+  if (pathname.startsWith('/p/')) {
+    productSlug = pathname.slice(3).trim();
+  } else if (pathname.startsWith('/product/')) {
+    productSlug = pathname.slice(9).trim();
+  }
+
+  if (productSlug) {
+    const foundProduct = findProductBySlug(prods, productSlug);
+    if (foundProduct) {
+      const canonical = `/p/${getProductSlug(foundProduct)}`;
+      if (window.location.pathname !== canonical) {
+        window.history.replaceState(null, '', canonical);
+      }
+      return { type: 'product', product: foundProduct };
+    } else {
+      // Return 404 - Never silently redirect to homepage!
+      return { type: '404', attemptedSlug: productSlug };
+    }
+  }
+
+  // 4. Legacy query parameter fallback: /product?id=123 or /?id=123
+  const legacyId = searchParams.get('id') || searchParams.get('productId');
+  if (legacyId) {
+    const foundLegacy = findProductBySlug(prods, legacyId);
+    if (foundLegacy) {
+      const canonical = `/p/${getProductSlug(foundLegacy)}`;
+      window.history.replaceState(null, '', canonical);
+      return { type: 'product', product: foundLegacy };
+    } else {
+      return { type: '404', attemptedSlug: legacyId };
+    }
+  }
+
+  // 5. Category routes: /category/:name or /c/:name
+  if (pathname.startsWith('/category/')) {
+    const cat = decodeURIComponent(pathname.slice(10).trim());
+    return { type: 'category', categoryName: cat };
+  }
+  if (pathname.startsWith('/c/')) {
+    const cat = decodeURIComponent(pathname.slice(3).trim());
+    return { type: 'category', categoryName: cat };
+  }
+
+  // 6. Search route: /search?q=...
+  if (pathname === '/search') {
+    const q = searchParams.get('q') || '';
+    return { type: 'search', query: q };
+  }
+
+  // 7. Known named views
+  const pathNoSlash = pathname.replace(/^\//, '');
+  const knownViews = [
+    'all-categories', 'featured-products', 'all-products', 'best-sellers',
+    'new-arrivals', 'bundles', 'gift-cards', 'track-order', 'help-center',
+    'shipping-returns', 'warranty-policy', 'contact-us', 'about-us',
+    'careers', 'press', 'affiliates', 'privacy-policy', 'terms-of-service',
+    'security', 'admin', 'checkout', 'profile'
+  ];
+  if (knownViews.includes(pathNoSlash)) {
+    return pathNoSlash as ViewState;
+  }
+
+  return 'home';
+};
+
 export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = safeStorage.getItem('ghm_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateProducts(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) return ensureProductSlugs(deduplicateProducts(parsed));
       }
     } catch (e) {}
-    return deduplicateProducts(INITIAL_PRODUCTS);
+    return ensureProductSlugs(deduplicateProducts(INITIAL_PRODUCTS));
   });
 
   const [categories, setCategories] = useState<CategoryItem[]>(() => {
@@ -207,7 +317,20 @@ export default function App() {
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [currentView, setCurrentView] = useState<ViewState>('home');
+  const [currentView, setCurrentView] = useState<ViewState>(() => {
+    // Check initial products and URL
+    const initialProds = (() => {
+      try {
+        const saved = safeStorage.getItem('ghm_products');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return ensureProductSlugs(deduplicateProducts(parsed));
+        }
+      } catch (e) {}
+      return ensureProductSlugs(deduplicateProducts(INITIAL_PRODUCTS));
+    })();
+    return resolveViewFromUrl(initialProds);
+  });
   const [activeCategory, setActiveCategory] = useState<string>('All');
   
   const categoriesList = ['All', ...categories.map(c => c.label || c.id)];
@@ -392,8 +515,7 @@ export default function App() {
   };
 
   const formatPrice = (price: number) => {
-    const amount = price < 500 ? Math.round(price * 120) : Math.round(price);
-    return `৳${amount.toLocaleString('en-US')}`;
+    return `৳${Math.round(price || 0).toLocaleString('en-US')}`;
   };
 
   // Add to cart from card or detail page
@@ -401,7 +523,7 @@ export default function App() {
     if (e) e.stopPropagation();
     
     // Fire Meta Pixel AddToCart event
-    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    const priceInBdt = Math.round(product.price || 0);
     trackAddToCart({
       id: product.id,
       name: product.name,
@@ -426,28 +548,126 @@ export default function App() {
     showToast(`Added "${product.name}" to cart`);
   };
 
+  const navigateView = (view: ViewState, replace = false) => {
+    setCurrentView(view);
+    if (typeof window !== 'undefined') {
+      const targetPath = getPathForView(view);
+      if (replace) {
+        window.history.replaceState(null, '', targetPath);
+      } else if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
+    }
+  };
+
+  // Popstate listener for browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const resolved = resolveViewFromUrl(products);
+      setCurrentView(resolved);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
+
+  // Re-resolve view when products array hydrates from database or if currently on 404 / direct slug
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const pathname = window.location.pathname;
+    
+    // Check if we are currently showing 404 or on a direct product / shortlink path
+    const isProductPath = pathname.startsWith('/p/') || pathname.startsWith('/product/') || pathname.startsWith('/s/');
+    const isCurrently404 = typeof currentView === 'object' && currentView.type === '404';
+
+    if (isProductPath || isCurrently404) {
+      const resolved = resolveViewFromUrl(products);
+      if (typeof resolved === 'object' && resolved.type === 'product') {
+        setCurrentView(resolved);
+      } else if (isCurrently404 && typeof resolved === 'object' && resolved.type === '404' && resolved.attemptedSlug) {
+        // Attempt single product lookup from database if not found in initial memory
+        const lookupSlug = resolved.attemptedSlug;
+        const fetchDirectProduct = async () => {
+          try {
+            const supabase = await getSupabase();
+            const { data } = await supabase
+              .from('products')
+              .select('*')
+              .or(`id.eq.${lookupSlug},slug.eq.${lookupSlug}`)
+              .limit(1);
+
+            if (data && data.length > 0) {
+              const p = data[0];
+              const prodObj: Product = {
+                id: p.id,
+                name: p.name,
+                category: p.category,
+                price: Number(p.price),
+                originalPrice: p.original_price ? Number(p.original_price) : undefined,
+                stockCount: p.stock_count ?? 50,
+                rating: p.rating ? Number(p.rating) : 4.9,
+                reviewCount: p.review_count ?? 15,
+                imageUrl: p.image_url,
+                images: p.images && Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url],
+                colors: p.colors || ['Black'],
+                shortDescription: p.short_description || p.description,
+                fullDescription: p.full_description || p.description,
+                description: p.short_description || p.description,
+                warranty: p.warranty,
+                features: p.features || ['Official gadget', 'High durability'],
+                specs: p.specs || {},
+                isFeatured: p.is_featured,
+                isBestSeller: p.is_best_seller,
+                isNewArrival: p.is_new_arrival,
+                isBundle: p.is_bundle,
+                isTravel: p.is_travel,
+                sections: p.sections || ['All Products']
+              };
+              setProducts(prev => deduplicateProducts([prodObj, ...prev]));
+              setCurrentView({ type: 'product', product: prodObj });
+              const canonical = `/p/${getProductSlug(prodObj)}`;
+              if (window.location.pathname !== canonical) {
+                window.history.replaceState(null, '', canonical);
+              }
+            }
+          } catch (e) {
+            // keep 404 if not found in database either
+          }
+        };
+        fetchDirectProduct();
+      }
+    }
+  }, [products]);
+
   // Buy now shortcut
   const handleBuyNow = (product: Product, quantity = 1, color?: string) => {
     handleAddToCart(product, quantity, color);
-    setCurrentView('checkout');
+    navigateView('checkout');
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
 
-  const handleUpdateCartQuantity = (productId: string, quantity: number) => {
+  const handleUpdateCartQuantity = (productId: string, quantity: number, color?: string) => {
     setCart((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+      prev.map((item) => {
+        const matches = color ? (item.product.id === productId && item.selectedColor === color) : item.product.id === productId;
+        return matches ? { ...item, quantity } : item;
+      })
     );
   };
 
-  const handleRemoveFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveFromCart = (productId: string, color?: string) => {
+    setCart((prev) =>
+      prev.filter((item) => {
+        if (color) {
+          return !(item.product.id === productId && item.selectedColor === color);
+        }
+        return item.product.id !== productId;
+      })
+    );
   };
 
   const handleSelectProduct = (product: Product) => {
     // Fire Meta Pixel ViewContent event
-    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    const priceInBdt = Math.round(product.price || 0);
     trackViewContent({
       id: product.id,
       name: product.name,
@@ -456,28 +676,28 @@ export default function App() {
       currency: 'BDT'
     });
 
-    setCurrentView({ type: 'product', product });
+    navigateView({ type: 'product', product });
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
 
   const handleSelectCategory = (categoryName: string) => {
     setActiveCategory(categoryName);
     if (categoryName === 'All') {
-      setCurrentView('home');
+      navigateView('home');
     } else {
-      setCurrentView({ type: 'category', categoryName });
+      navigateView({ type: 'category', categoryName });
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
 
   const handleSearchSubmit = (query: string) => {
-    setCurrentView({ type: 'search', query });
+    navigateView({ type: 'search', query });
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
 
   const handleNavigateSection = (sectionId: string) => {
     if (currentView !== 'home') {
-      setCurrentView('home');
+      navigateView('home');
       setTimeout(() => {
         const el = document.getElementById(sectionId);
         if (el) el.scrollIntoView({ behavior: 'instant' });
@@ -756,13 +976,28 @@ export default function App() {
             product={currentView.product}
             allProducts={products}
             onBack={() => {
-              setCurrentView('home');
+              navigateView('home');
               window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
             }}
             onSelectProduct={handleSelectProduct}
             onAddToCart={handleAddToCart}
             onBuyNow={handleBuyNow}
             currentCurrency={currentCurrency}
+          />
+        )}
+
+        {typeof currentView === 'object' && currentView.type === '404' && (
+          <ProductNotFoundPage
+            attemptedSlug={currentView.attemptedSlug}
+            onNavigateHome={() => {
+              navigateView('home');
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
+            onSearch={handleSearchSubmit}
+            recommendedProducts={products}
+            onSelectProduct={handleSelectProduct}
+            onAddToCart={handleAddToCart}
+            onBuyNow={(prod) => handleBuyNow(prod, 1)}
           />
         )}
 
@@ -811,6 +1046,8 @@ export default function App() {
               setCurrentView('home');
               window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
             }}
+            onRemoveItem={handleRemoveFromCart}
+            onUpdateQuantity={handleUpdateCartQuantity}
             onOrderSuccess={async (id, orderDetails) => {
               const newOrd = { 
                 id, 

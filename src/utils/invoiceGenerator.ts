@@ -69,7 +69,7 @@ export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
   const items: InvoiceItem[] = (order.items && order.items.length > 0)
     ? order.items.map((it: any) => {
         const qty = it.quantity || 1;
-        const p = it.priceBdt ?? (it.price && it.price < 500 ? Math.round(it.price * 120) : Math.round(it.price || 0));
+        const p = it.priceBdt ?? Math.round(it.price || 0);
         return {
           productName: it.productName || it.name || 'Premium Tech Gadget',
           quantity: qty,
@@ -80,12 +80,12 @@ export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
     : [{
         productName: 'Gadget Hub Mart Tech Item',
         quantity: 1,
-        priceBdt: Math.round(order.total < 500 ? order.total * 120 : (order.total || 1500)),
+        priceBdt: Math.round(order.total || 1500),
       }];
 
   const subtotal = order.subtotalBdt ?? items.reduce((sum, it) => sum + (it.priceBdt || 0) * (it.quantity || 1), 0);
   const discount = order.discountBdt || order.discount || 0;
-  const grandTotal = order.totalBdt ?? (order.total < 500 ? Math.round(order.total * 120) : Math.round(order.total || (subtotal + deliveryCharge - discount)));
+  const grandTotal = order.totalBdt ?? Math.round(order.total || (subtotal + deliveryCharge - discount));
 
   const dateStr = order.date || new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = order.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -391,7 +391,7 @@ export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
           <div class="brand-title">Gadget Hub Mart</div>
           <div class="brand-sub">Official Premium Tech & Electronics Store</div>
           <div class="brand-contacts">
-            Helpline: +880 1835-985730 &bull; Web: www.gadgethubmart.bd &bull; Email: support@gadgethubmart.bd
+            Hotline: 01886306837 &bull; Address: Chawkbazar , Chattogram &bull; Email: mrmiahctg07@gmail.com
           </div>
         </div>
       </div>
@@ -471,9 +471,9 @@ export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
     <div class="bottom-section">
       <div class="policy-box">
         <div class="policy-title">Terms & Customer Guarantee:</div>
-        <p>&bull; 7 Days Replacement Warranty applicable for any manufacturing fault.</p>
+        <p>&bull; 100% authentic and original branded gadgets.</p>
         <p>&bull; Please inspect package and test products before handing payment to courier.</p>
-        <p>&bull; For customer support, reach out via WhatsApp/Call at +880 1835-985730.</p>
+        <p>&bull; For customer support, reach out via Hotline at 01886306837.</p>
       </div>
 
       <div class="totals-box">

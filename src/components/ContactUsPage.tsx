@@ -55,7 +55,7 @@ export const ContactUsPage: React.FC<ContactUsPageProps> = ({ onBack }) => {
               <Phone className="w-5 h-5" />
             </div>
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">হটলাইন</h4>
-            <p className="text-sm font-bold text-gray-900">+880 1711-223344</p>
+            <a href="tel:01886306837" className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors block">01886306837</a>
             <p className="text-[11px] text-gray-500">সকাল ১০টা - রাত ১০টা</p>
           </div>
 
@@ -64,7 +64,7 @@ export const ContactUsPage: React.FC<ContactUsPageProps> = ({ onBack }) => {
               <Mail className="w-5 h-5" />
             </div>
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">ইমেইল</h4>
-            <p className="text-sm font-bold text-gray-900">support@gadgethubmart.com</p>
+            <a href="mailto:mrmiahctg07@gmail.com" className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors block">mrmiahctg07@gmail.com</a>
             <p className="text-[11px] text-gray-500">২৪ ঘণ্টার মধ্যে রিপ্লাই</p>
           </div>
 
@@ -73,7 +73,7 @@ export const ContactUsPage: React.FC<ContactUsPageProps> = ({ onBack }) => {
               <MapPin className="w-5 h-5" />
             </div>
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">অফিস</h4>
-            <p className="text-sm font-bold text-gray-900">গুলশান-১, ঢাকা, বাংলাদেশ</p>
+            <p className="text-sm font-bold text-gray-900">Chawkbazar , Chattogram</p>
             <p className="text-[11px] text-gray-500">কর্পোরেট প্রধান কার্যালয়</p>
           </div>
         </div>

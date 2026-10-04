@@ -13,7 +13,7 @@ interface ProductCardProps {
 
 export const formatBdtPrice = (price: number): string => {
   if (price === undefined || price === null || isNaN(price)) return '৳০';
-  const amount = price < 500 ? Math.round(price * 120) : Math.round(price);
+  const amount = Math.round(price);
   return `৳${amount.toLocaleString('en-US')}`;
 };
 

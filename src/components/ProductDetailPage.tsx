@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Star, ShieldCheck, Truck, RotateCcw, Check, Plus, Minus, Zap } from 'lucide-react';
+import { ShoppingBag, Star, ShieldCheck, Truck, RotateCcw, Check, Plus, Minus, Zap, ArrowLeft, Link2, Copy, Share2 } from 'lucide-react';
 import { Product, Currency } from '../types';
 import { formatBdtPrice, ProductCard } from './ProductCard';
 import { trackViewContent } from '../utils/pixel';
+import { getProductSlug } from '../utils/slug';
+import { buildCanonicalProductUrl } from '../utils/shortLinks';
 
 interface ProductDetailPageProps {
   product: Product;
@@ -16,6 +18,7 @@ interface ProductDetailPageProps {
 
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   product,
+  onBack,
   onAddToCart,
   onBuyNow,
   onSelectProduct,
@@ -23,7 +26,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 }) => {
   // Fire Meta Pixel ViewContent event on Product Detail Page
   useEffect(() => {
-    const priceInBdt = product.price < 500 ? Math.round(product.price * 120) : Math.round(product.price);
+    const priceInBdt = Math.round(product.price || 0);
     trackViewContent({
       id: product.id,
       name: product.name,
@@ -49,6 +52,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [selectedColor, setSelectedColor] = useState<string>(initialColorName);
   const [quantity, setQuantity] = useState(1);
   const [addedAnim, setAddedAnim] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const relatedProducts = allProducts
     .filter(p => p.category === product.category && p.id !== product.id)
@@ -64,10 +68,50 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     onBuyNow(product, quantity, selectedColor);
   };
 
+  const handleCopyCleanLink = () => {
+    const slug = getProductSlug(product);
+    const cleanUrl = buildCanonicalProductUrl(slug);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(cleanUrl).then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] pt-3 pb-20 px-3 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-200">
+      <div className="max-w-6xl mx-auto space-y-4 animate-in fade-in duration-200">
         
+        {/* Navigation & Clean Share Top Bar */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-blue-600 bg-white px-4 py-2 rounded-full border border-gray-200/80 shadow-2xs transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>হোমে ফিরে যান</span>
+          </button>
+
+          <button
+            onClick={handleCopyCleanLink}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white px-3.5 py-2 rounded-full border border-gray-200/80 shadow-2xs transition-all cursor-pointer active:scale-95"
+            title="মার্কেটিং এর জন্য পরিষ্কার লিংক কপি করুন"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-700">ক্লিন লিংক কপি হয়েছে!</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>ক্লিন লিংক কপি করুন</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Main Product Section */}
         <div className="bg-white rounded-3xl border-0 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-4 sm:p-10">
           
@@ -104,7 +148,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
             <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 font-medium">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>অফিসিয়াল ১-বছরের রিপ্লেসমেন্ট ওয়ারেন্টি অন্তর্ভুক্ত</span>
+              <span>১০০% আসল ও প্রিমিয়াম কোয়ালিটি নিশ্চয়তা</span>
             </div>
           </div>
 
@@ -157,7 +201,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100/80">
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                  <span>ওয়ারেন্টি: {product.warranty || product.specs?.warranty || '১ বছরের রিপ্লেসমেন্ট'}</span>
+                  <span>১০০% আসল ও অরিজিনাল পণ্য</span>
                 </div>
               </div>
 
@@ -288,13 +332,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             <div className="bg-white rounded-3xl p-6 sm:p-8 space-y-4 shadow-2xs border border-gray-100">
               <h3 className="text-base font-black text-gray-950 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                <span>টেকনিক্যাল স্পেসিফিকেশন ও ওয়ারেন্টি</span>
+                <span>টেকনিক্যাল স্পেসিফিকেশন</span>
               </h3>
               <div className="divide-y divide-gray-100 text-xs">
                 <div className="py-2.5 flex justify-between"><span className="text-gray-500 font-semibold">কম্প্যাটিবিলিটি</span><span className="font-bold text-gray-900">{product.specs?.compatibility || 'Universal'}</span></div>
                 <div className="py-2.5 flex justify-between"><span className="text-gray-500 font-semibold">ম্যাটেরিয়াল</span><span className="font-bold text-gray-900">{product.specs?.material || 'Premium Alloy'}</span></div>
                 <div className="py-2.5 flex justify-between"><span className="text-gray-500 font-semibold">ডাইমেনশন</span><span className="font-bold text-gray-900">{product.specs?.dimensions || 'Compact'}</span></div>
-                <div className="py-2.5 flex justify-between bg-emerald-50/70 px-3 py-2 rounded-xl my-1"><span className="text-emerald-800 font-bold">অফিসিয়াল ওয়ারেন্টি</span><span className="font-black text-emerald-700">{product.warranty || product.specs?.warranty || '১ বছরের অফিসিয়াল ওয়ারেন্টি'}</span></div>
+                <div className="py-2.5 flex justify-between"><span className="text-gray-500 font-semibold">কোয়ালিটি গ্রেড</span><span className="font-bold text-emerald-600">Official Brand Quality</span></div>
               </div>
             </div>
 
@@ -304,7 +348,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <span>মূল ফিচারসমূহ (Key Features)</span>
               </h3>
               <ul className="space-y-2.5 text-xs">
-                {(product.features && product.features.length > 0 ? product.features : ['High durability & premium finish', 'Fast charging and data support', 'Official brand warranty included', 'Drop-tested and reliable design']).map((feat, idx) => (
+                {(product.features && product.features.length > 0 ? product.features : ['High durability & premium finish', 'Fast charging and data support', 'Official brand authentic quality', 'Drop-tested and reliable design']).map((feat, idx) => (
                   <li key={idx} className="flex items-center gap-2.5 text-gray-700 font-medium bg-gray-50/80 p-2.5 rounded-xl border border-gray-100/60">
                     <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 font-black text-xs">✓</span>
                     <span>{feat}</span>

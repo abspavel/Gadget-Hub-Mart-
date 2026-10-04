@@ -43,6 +43,47 @@
       fbq('track', 'PageView');
     </script>
     <!-- End Meta Pixel Base Code -->
+
+    <!-- Instant URL Tracking Cleaner: removes fbclid, aem, utm_* immediately while preserving path/slug -->
+    <script>
+      (function() {
+        try {
+          var search = window.location.search;
+          if (!search) return;
+          var trackingKeys = ['fbclid', 'aem', 'fb_param', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'gclid', 'igshid', 'ttclid'];
+          var hasTracking = false;
+          var params = new URLSearchParams(search);
+          var extracted = {};
+          
+          trackingKeys.forEach(function(k) {
+            if (params.has(k)) {
+              hasTracking = true;
+              extracted[k] = params.get(k);
+              params.delete(k);
+            }
+          });
+
+          var keys = [];
+          params.forEach(function(_, k) { keys.push(k); });
+          keys.forEach(function(k) {
+            if (k.indexOf('utm_') === 0 || k.indexOf('fb_') === 0) {
+              hasTracking = true;
+              extracted[k] = params.get(k);
+              params.delete(k);
+            }
+          });
+
+          if (hasTracking) {
+            try {
+              sessionStorage.setItem('ghm_ad_attribution', JSON.stringify(extracted));
+            } catch(e) {}
+            var cleanQuery = params.toString();
+            var cleanUrl = window.location.pathname + (cleanQuery ? '?' + cleanQuery : '') + window.location.hash;
+            window.history.replaceState(window.history.state, document.title, cleanUrl);
+          }
+        } catch(e) {}
+      })();
+    </script>
     
     <!-- Primary SEO Metadata -->
     <title>Gadget Hub Mart | Best Online Gadget Store in Bangladesh | Cash on Delivery</title>
@@ -98,15 +139,15 @@
           "logo": "https://gadgethubmart.bd/og-image.jpeg",
           "image": "https://gadgethubmart.bd/og-image.jpeg",
           "description": "Premium authentic tech accessories, GaN chargers, wireless audio, smartwatches and power banks in Bangladesh.",
-          "telephone": "+8801835985730",
-          "email": "support@gadgethubmart.bd",
+          "telephone": "+8801886306837",
+          "email": "mrmiahctg07@gmail.com",
           "priceRange": "৳৳",
           "paymentAccepted": "Cash on Delivery, Mobile Banking",
           "currenciesAccepted": "BDT",
           "address": {
             "@type": "PostalAddress",
-            "addressLocality": "Dhaka",
-            "addressRegion": "Dhaka Division",
+            "addressLocality": "Chawkbazar , Chattogram",
+            "addressRegion": "Chattogram",
             "addressCountry": "BD"
           },
           "openingHoursSpecification": {
