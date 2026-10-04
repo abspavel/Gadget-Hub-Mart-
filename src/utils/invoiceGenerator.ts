@@ -1,7 +1,13 @@
 /**
- * Official Invoice Generator for Gadget Hub Mart
- * Produces a sleek, compact single-page printable A4 receipt in 100% English
- * with embedded official brand logo.
+ * Professional Single-Page Invoice Generator for Gadget Hub Mart
+ * Re-designed to match the exact clean, modern 1-page layout from customer specification:
+ * - Bold Store Header & Subtitle ("Your Trusted Shopping Partner")
+ * - Vibrant Orange "INVOICE" badge with #ID and Date
+ * - Two-column Customer (Billed To) & Order Details layout
+ * - Minimalist, elegant Items Table with light grey header
+ * - Clear Subtotal, Delivery & Highlighted Orange Total
+ * - Clean centered footer message ("Thank you for shopping with us!")
+ * - Strict 1-Page print and PDF layout without page overflow
  */
 
 export interface InvoiceItem {
@@ -13,12 +19,16 @@ export interface InvoiceItem {
 }
 
 export interface InvoiceOrderData {
-  orderId: string | number;
-  customerName: string;
-  phone: string;
-  address: string;
+  id?: string | number;
+  orderId?: string | number;
+  customerName?: string;
+  phone?: string;
+  address?: string;
   thana?: string;
   city?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  status?: string;
   deliveryZone?: string;
   deliveryChargeBdt?: number;
   subtotalBdt?: number;
@@ -26,44 +36,46 @@ export interface InvoiceOrderData {
   totalBdt?: number;
   total?: number;
   date?: string;
-  time?: string;
-  status?: string;
-  items: InvoiceItem[];
+  items?: InvoiceItem[];
 }
 
-/**
- * Converts image to base64 Data URL so the downloaded invoice is 100% self-contained
- */
-const getLogoDataUrl = async (): Promise<string> => {
+const formatDate = (dateInput?: string): string => {
   try {
-    const res = await fetch('/favicon.jpeg');
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve('/favicon.jpeg');
-      reader.readAsDataURL(blob);
-    });
+    if (!dateInput) {
+      const now = new Date();
+      return now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      return dateInput;
+    }
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   } catch {
-    return '/favicon.jpeg';
+    return '04 Oct 2026';
   }
 };
 
 /**
- * Downloads a single-page compact printable A4 invoice
+ * Downloads a single-page clean printable invoice
  */
 export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
   if (!order) return false;
 
-  // Format order data
-  const rawId = String(order.id || order.orderId || 'GHM-100000');
-  const formattedId = rawId.startsWith('GHM-') ? rawId : `GHM-${rawId.slice(0, 6).toUpperCase()}`;
+  // Format Order ID
+  const rawId = String(order.id || order.orderId || '').trim();
+  let formattedId = rawId.replace(/^GHM-?/i, '');
+  if (!formattedId) {
+    formattedId = Math.random().toString(36).substring(2, 10).toUpperCase();
+  } else {
+    formattedId = formattedId.toUpperCase();
+  }
 
   const customerName = order.customerName || 'Valued Customer';
-  const phone = order.phone || 'N/A';
-  const address = order.address || 'Dhaka, Bangladesh';
-  const deliveryZone = order.deliveryZone || (address.toLowerCase().includes('dhaka') ? 'Inside Dhaka (৳80)' : 'Outside Dhaka (৳120)');
-  const deliveryCharge = order.deliveryChargeBdt ?? (deliveryZone.includes('80') ? 80 : 120);
+  const phone = order.phone || '01XXXXXXXXX';
+  const address = order.address || 'Chattogram, Bangladesh';
+  const paymentMethod = String(order.paymentMethod || 'cod').toLowerCase();
+  const paymentStatus = String(order.paymentStatus || 'pending').toLowerCase();
+  const orderStatus = String(order.status || 'pending').toLowerCase();
 
   // Normalize items
   const items: InvoiceItem[] = (order.items && order.items.length > 0)
@@ -78,446 +90,407 @@ export const downloadOrderInvoice = async (order: any): Promise<boolean> => {
         };
       })
     : [{
-        productName: 'Gadget Hub Mart Tech Item',
+        productName: 'Gadget Hub Mart Item',
         quantity: 1,
-        priceBdt: Math.round(order.total || 1500),
+        priceBdt: Math.round(order.total || 1330),
       }];
 
   const subtotal = order.subtotalBdt ?? items.reduce((sum, it) => sum + (it.priceBdt || 0) * (it.quantity || 1), 0);
+  const deliveryCharge = order.deliveryChargeBdt ?? (order.deliveryZone?.includes('80') ? 80 : 120);
   const discount = order.discountBdt || order.discount || 0;
   const grandTotal = order.totalBdt ?? Math.round(order.total || (subtotal + deliveryCharge - discount));
-
-  const dateStr = order.date || new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-  const timeStr = order.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-  // Get embedded logo data
-  const logoSrc = await getLogoDataUrl();
+  const dateStr = formatDate(order.date);
 
   const invoiceHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice-${formattedId} - Gadget Hub Mart</title>
+  <title>Invoice_${formattedId}</title>
   <style>
     @page {
       size: A4 portrait;
-      margin: 8mm 10mm;
+      margin: 12mm 15mm;
     }
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
-    body {
-      background: #f1f5f9;
-      color: #0f172a;
-      padding: 16px;
-      line-height: 1.4;
-      font-size: 12px;
-    }
-    .invoice-wrapper {
-      max-width: 720px;
-      margin: 0 auto;
-      border: 1px solid #cbd5e1;
-      border-radius: 12px;
-      padding: 24px 28px;
+    html, body {
       background: #ffffff;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+      color: #1e293b;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      width: 100%;
+      height: 100%;
     }
+    .print-bar {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .print-btn {
+      background: #ea580c;
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .print-btn:hover {
+      background: #c2410c;
+    }
+    .invoice-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 48px;
+      background: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    /* Header Row */
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid #0a192f;
-      padding-bottom: 16px;
-      margin-bottom: 14px;
+      align-items: flex-start;
+      margin-bottom: 24px;
     }
-    .brand-section {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .brand-logo-img {
-      width: 52px;
-      height: 52px;
-      border-radius: 12px;
-      object-fit: cover;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      border: 1px solid #0284c7;
-    }
-    .brand-title {
-      font-size: 20px;
+    .store-name {
+      font-size: 24px;
       font-weight: 900;
-      color: #0a192f;
+      color: #0b1f3f;
       letter-spacing: -0.5px;
+      text-transform: uppercase;
       line-height: 1.1;
     }
-    .brand-sub {
-      font-size: 10px;
+    .store-sub {
+      font-size: 11.5px;
       color: #64748b;
-      margin-top: 2px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      text-transform: uppercase;
+      margin-top: 4px;
+      font-weight: 500;
     }
-    .brand-contacts {
-      font-size: 10.5px;
-      color: #475569;
-      margin-top: 3px;
-    }
-    .meta-box {
+    .invoice-meta {
       text-align: right;
     }
-    .meta-badge {
-      display: inline-block;
-      padding: 3px 10px;
-      background: #0a192f;
-      color: #38bdf8;
-      font-size: 12px;
+    .invoice-title {
+      font-size: 20px;
       font-weight: 900;
-      letter-spacing: 1px;
-      border-radius: 6px;
+      color: #ea580c;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      line-height: 1.1;
     }
-    .meta-num {
-      font-family: ui-monospace, SFMono-Regular, monospace;
-      font-size: 14px;
-      font-weight: 800;
-      color: #0f172a;
+    .invoice-number {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #475569;
       margin-top: 4px;
+      letter-spacing: 0.3px;
     }
-    .meta-date {
-      font-size: 10px;
+    .invoice-date {
+      font-size: 11.5px;
       color: #64748b;
       margin-top: 2px;
     }
 
-    .barcode-strip {
+    /* Subtle Divider */
+    .divider {
+      height: 1px;
+      background: #e2e8f0;
+      margin-bottom: 28px;
+    }
+
+    /* Two-column Billed To & Order Details */
+    .details-row {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      background: #f8fafc;
-      border: 1px dashed #cbd5e1;
-      border-radius: 8px;
-      padding: 6px 12px;
-      margin-bottom: 14px;
+      gap: 32px;
+      margin-bottom: 32px;
     }
-    .barcode-text {
-      font-size: 9.5px;
-      color: #475569;
-      font-weight: 700;
-      letter-spacing: 0.3px;
+    .details-col {
+      flex: 1;
     }
-    .barcode-bars {
-      display: flex;
-      gap: 2.5px;
-      height: 18px;
-      align-items: center;
-    }
-    .bar {
-      height: 100%;
-      background: #0f172a;
-      border-radius: 0.5px;
-    }
-
-    .details-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-    .card {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 12px;
-    }
-    .card-label {
-      font-size: 9px;
+    .details-col h4 {
+      font-size: 13px;
       font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #64748b;
-      margin-bottom: 5px;
-      border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 3px;
+      color: #0b1f3f;
+      margin-bottom: 8px;
     }
-    .card-val {
-      font-size: 11px;
-      color: #1e293b;
+    .details-col p {
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.55;
       margin-bottom: 2px;
-      line-height: 1.35;
-    }
-    .badge {
-      display: inline-block;
-      padding: 1px 6px;
-      border-radius: 4px;
-      font-size: 9.5px;
-      font-weight: 800;
-      background: #dcfce7;
-      color: #15803d;
-      border: 1px solid #bbf7d0;
     }
 
+    /* Table */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 14px;
+      margin-bottom: 24px;
+    }
+    thead tr {
+      background: #f8fafc;
     }
     th {
-      background: #0a192f;
-      color: #ffffff;
-      font-size: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      padding: 8px 10px;
+      color: #334155;
       text-align: left;
     }
-    th:first-child { border-radius: 6px 0 0 6px; text-align: center; width: 30px; }
-    th:last-child { border-radius: 0 6px 6px 0; text-align: right; width: 100px; }
-    td {
-      padding: 8px 10px;
-      border-bottom: 1px solid #f1f5f9;
-      font-size: 11px;
+    th.col-qty {
+      text-align: center;
+      width: 15%;
+    }
+    th.col-price {
+      text-align: right;
+      width: 20%;
+    }
+    th.col-total {
+      text-align: right;
+      width: 20%;
+    }
+    tbody td {
+      padding: 12px 14px;
+      font-size: 12.5px;
       color: #334155;
+      border-bottom: 1px solid #f1f5f9;
     }
-    td:first-child { text-align: center; color: #64748b; }
-    td:last-child { text-align: right; font-weight: 700; color: #0f172a; }
-
-    .bottom-section {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-    .policy-box {
-      flex: 1;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 10px;
+    td.col-qty {
+      text-align: center;
       color: #475569;
-      line-height: 1.4;
     }
-    .policy-title {
-      font-weight: 800;
+    td.col-price {
+      text-align: right;
+      color: #475569;
+    }
+    td.col-total {
+      text-align: right;
+      font-weight: 600;
       color: #0f172a;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-      font-size: 9.5px;
     }
-    .totals-box {
-      width: 250px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 14px;
+    .item-name {
+      font-weight: 600;
+      color: #0f172a;
     }
-    .row {
-      display: flex;
-      justify-content: space-between;
+    .item-meta {
       font-size: 11px;
       color: #64748b;
-      margin-bottom: 5px;
-    }
-    .row.grand {
-      border-top: 1.5px solid #cbd5e1;
-      padding-top: 6px;
-      margin-top: 6px;
-      margin-bottom: 0;
-      font-size: 14px;
-      font-weight: 900;
-      color: #0f172a;
-    }
-    .row.grand span:last-child {
-      color: #2563eb;
+      margin-top: 2px;
     }
 
-    .footer {
-      border-top: 1px dashed #cbd5e1;
-      padding-top: 10px;
+    /* Summary / Totals block */
+    .summary-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 40px;
+    }
+    .summary-box {
+      width: 290px;
+    }
+    .summary-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #64748b;
-      font-size: 9.5px;
+      font-size: 12.5px;
+      color: #475569;
+      margin-bottom: 7px;
     }
-    .verified-seal {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 12px;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 9999px;
-      color: #1d4ed8;
-      font-weight: 800;
-      font-size: 9.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+    .summary-row .label {
+      font-weight: 500;
+      color: #475569;
     }
-    .sign-box {
+    .summary-row .value {
+      font-weight: 700;
+      color: #0f172a;
       text-align: right;
     }
-    .sign-line {
-      width: 120px;
-      border-top: 1px solid #94a3b8;
-      margin-top: 16px;
-      margin-left: auto;
-      padding-top: 2px;
-      font-size: 9px;
-      font-weight: 700;
+    .summary-divider {
+      border-top: 2px solid #0f172a;
+      margin: 10px 0 10px 0;
+    }
+    .summary-row.grand-total {
+      font-size: 14.5px;
+      font-weight: 900;
+      color: #0f172a;
+      margin-bottom: 0;
+    }
+    .summary-row.grand-total .value {
+      font-size: 15.5px;
+      font-weight: 900;
+      color: #ea580c;
+    }
+
+    /* Footer message */
+    .invoice-footer {
+      text-align: center;
+      padding-top: 30px;
+      border-top: 1px solid #f1f5f9;
+      margin-top: auto;
+    }
+    .footer-heading {
+      font-size: 12px;
       color: #475569;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+    .footer-sub {
+      font-size: 11px;
+      color: #64748b;
     }
 
     @media print {
-      body { padding: 0; background: #fff; }
-      .invoice-wrapper { border: none; padding: 0; box-shadow: none; max-width: 100%; }
+      .print-bar {
+        display: none !important;
+      }
+      body, html {
+        background: #ffffff !important;
+        padding: 0 !important;
+      }
+      .invoice-container {
+        padding: 0 !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="invoice-wrapper">
-    
-    <!-- Top Header with Official Favicon Logo -->
-    <div class="header">
-      <div class="brand-section">
-        <img src="${logoSrc}" alt="Gadget Hub Mart Logo" class="brand-logo-img" />
-        <div>
-          <div class="brand-title">Gadget Hub Mart</div>
-          <div class="brand-sub">Official Premium Tech & Electronics Store</div>
-          <div class="brand-contacts">
-            Hotline: 01886306837 &bull; Address: Chawkbazar , Chattogram &bull; Email: mrmiahctg07@gmail.com
-          </div>
-        </div>
-      </div>
-      <div class="meta-box">
-        <div class="meta-badge">TAX INVOICE</div>
-        <div class="meta-num">#${formattedId}</div>
-        <div class="meta-date">Date: ${dateStr} (${timeStr})</div>
-      </div>
+
+  <!-- Top Print Toolbar for browser view -->
+  <div class="print-bar no-print">
+    <div style="font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+      <span>Gadget Hub Mart &bull; Invoice #${formattedId}</span>
     </div>
-
-    <!-- Security & Verification Barcode Header -->
-    <div class="barcode-strip">
-      <div class="barcode-text">
-        <span>SECURITY TOKEN: <strong>GHM-SEC-${Math.floor(100000 + Math.random() * 900000)}</strong> &bull; OFFICIAL CASH ON DELIVERY RECEIPT</span>
-      </div>
-      <div class="barcode-bars">
-        <div class="bar" style="width: 2px;"></div>
-        <div class="bar" style="width: 4px;"></div>
-        <div class="bar" style="width: 1px;"></div>
-        <div class="bar" style="width: 3px;"></div>
-        <div class="bar" style="width: 1px;"></div>
-        <div class="bar" style="width: 5px;"></div>
-        <div class="bar" style="width: 2px;"></div>
-        <div class="bar" style="width: 3px;"></div>
-        <div class="bar" style="width: 1px;"></div>
-        <div class="bar" style="width: 4px;"></div>
-        <div class="bar" style="width: 2px;"></div>
-      </div>
-    </div>
-
-    <!-- Customer & Logistics Details -->
-    <div class="details-grid">
-      <div class="card">
-        <div class="card-label">Billed & Delivered To</div>
-        <div class="card-val">Customer Name: <strong>${customerName}</strong></div>
-        <div class="card-val">Mobile Phone: <strong>${phone}</strong></div>
-        <div class="card-val">Delivery Address: ${address}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Order & Logistics Information</div>
-        <div class="card-val">Payment Method: <span class="badge">Cash on Delivery (COD)</span></div>
-        <div class="card-val">Delivery Zone: <strong>${deliveryZone}</strong></div>
-        <div class="card-val">Courier Partner: <strong>Steadfast Express Logistics</strong></div>
-        <div class="card-val">Order Status: <strong>Confirmed & Processing</strong></div>
-      </div>
-    </div>
-
-    <!-- Items Table -->
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Item Description & Specifications</th>
-          <th style="width: 50px; text-align: center;">Qty</th>
-          <th style="width: 90px; text-align: right;">Unit Price</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map((it, idx) => `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>
-              <strong style="color: #0f172a;">${it.productName}</strong>
-              ${it.selectedColor ? `<span style="font-size: 10px; color: #64748b; margin-left: 6px;">[Color: ${it.selectedColor}]</span>` : ''}
-              <div style="font-size: 9.5px; color: #94a3b8;">100% Genuine Brand Product &bull; 7 Days Replacement Warranty</div>
-            </td>
-            <td style="text-align: center; font-weight: bold;">${it.quantity}</td>
-            <td style="text-align: right;">৳${(it.priceBdt || 0).toLocaleString()}</td>
-            <td>৳${((it.priceBdt || 0) * it.quantity).toLocaleString()}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-
-    <!-- Bottom Totals & Policies -->
-    <div class="bottom-section">
-      <div class="policy-box">
-        <div class="policy-title">Terms & Customer Guarantee:</div>
-        <p>&bull; 100% authentic and original branded gadgets.</p>
-        <p>&bull; Please inspect package and test products before handing payment to courier.</p>
-        <p>&bull; For customer support, reach out via Hotline at 01886306837.</p>
-      </div>
-
-      <div class="totals-box">
-        <div class="row">
-          <span>Subtotal:</span>
-          <span style="font-weight: bold; color: #0f172a;">৳${subtotal.toLocaleString()}</span>
-        </div>
-        <div class="row">
-          <span>Delivery Charge:</span>
-          <span style="font-weight: bold; color: #0f172a;">৳${deliveryCharge}</span>
-        </div>
-        ${discount > 0 ? `
-          <div class="row" style="color: #16a34a;">
-            <span>Coupon Discount:</span>
-            <span style="font-weight: bold;">-৳${discount.toLocaleString()}</span>
-          </div>
-        ` : ''}
-        <div class="row grand">
-          <span>Total Payable:</span>
-          <span>৳${grandTotal.toLocaleString()}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Official Verified Footer -->
-    <div class="footer">
-      <div class="verified-seal">
-        &check; Official Verified Cash On Delivery Invoice &bull; Gadget Hub Mart
-      </div>
-      <div class="sign-box">
-        <div class="sign-line">Authorized Signatory</div>
-      </div>
-    </div>
-
+    <button class="print-btn" onclick="window.print()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      Print / Save PDF
+    </button>
   </div>
+
+  <div class="invoice-container">
+    <div>
+      <!-- Header -->
+      <div class="header">
+        <div>
+          <div class="store-name">Gadget Hub Mart</div>
+          <div class="store-sub">Your Trusted Shopping Partner</div>
+        </div>
+        <div class="invoice-meta">
+          <div class="invoice-title">INVOICE</div>
+          <div class="invoice-number">#${formattedId}</div>
+          <div class="invoice-date">Date: ${dateStr}</div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="divider"></div>
+
+      <!-- Billed To & Order Details -->
+      <div class="details-row">
+        <div class="details-col">
+          <h4>Billed To:</h4>
+          <p style="font-weight: 700; color: #0f172a;">${customerName}</p>
+          <p>${phone}</p>
+          <p>${address}</p>
+        </div>
+        <div class="details-col">
+          <h4>Order Details:</h4>
+          <p><span style="color: #64748b;">Payment Method:</span> <strong style="text-transform: lowercase;">${paymentMethod}</strong></p>
+          <p><span style="color: #64748b;">Payment Status:</span> <strong style="text-transform: lowercase;">${paymentStatus}</strong></p>
+          <p><span style="color: #64748b;">Order Status:</span> <strong style="text-transform: lowercase;">${orderStatus}</strong></p>
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <table>
+        <thead>
+          <tr>
+            <th>Item Description</th>
+            <th class="col-qty">Quantity</th>
+            <th class="col-price">Unit Price</th>
+            <th class="col-total">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(it => `
+            <tr>
+              <td>
+                <div class="item-name">${it.productName}</div>
+                ${it.selectedColor ? `<div class="item-meta">Color: ${it.selectedColor}</div>` : ''}
+              </td>
+              <td class="col-qty">${it.quantity}</td>
+              <td class="col-price">BDT ${(it.priceBdt || 0).toLocaleString()}</td>
+              <td class="col-total">BDT ${((it.priceBdt || 0) * it.quantity).toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <!-- Summary / Totals -->
+      <div class="summary-section">
+        <div class="summary-box">
+          <div class="summary-row">
+            <span class="label">Subtotal:</span>
+            <span class="value">BDT ${subtotal.toLocaleString()}</span>
+          </div>
+          ${deliveryCharge > 0 ? `
+          <div class="summary-row">
+            <span class="label">Delivery Charge:</span>
+            <span class="value">BDT ${deliveryCharge.toLocaleString()}</span>
+          </div>
+          ` : ''}
+          ${discount > 0 ? `
+          <div class="summary-row" style="color: #16a34a;">
+            <span class="label" style="color: #16a34a;">Discount:</span>
+            <span class="value" style="color: #16a34a;">-BDT ${discount.toLocaleString()}</span>
+          </div>
+          ` : ''}
+          <div class="summary-divider"></div>
+          <div class="summary-row grand-total">
+            <span class="label">Total:</span>
+            <span class="value">BDT ${grandTotal.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Centered Footer -->
+    <div class="invoice-footer">
+      <p class="footer-heading">Thank you for shopping with us!</p>
+      <p class="footer-sub">If you have any questions about this invoice, please contact support.</p>
+    </div>
+  </div>
+
 </body>
 </html>`;
 
-  // Silent in-page direct download
+  // Direct download file
   const blob = new Blob([invoiceHtml], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `Invoice-${formattedId}.html`;
+  link.download = `Invoice_${formattedId}.html`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

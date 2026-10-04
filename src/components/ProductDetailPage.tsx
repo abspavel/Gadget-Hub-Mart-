@@ -71,11 +71,32 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const handleCopyCleanLink = () => {
     const slug = getProductSlug(product);
     const cleanUrl = buildCanonicalProductUrl(slug);
-    if (navigator.clipboard) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(cleanUrl).then(() => {
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
+      }).catch(() => {
+        fallbackCopy(cleanUrl);
       });
+    } else {
+      fallbackCopy(cleanUrl);
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // Ignore
     }
   };
 
@@ -96,17 +117,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           <button
             onClick={handleCopyCleanLink}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white px-3.5 py-2 rounded-full border border-gray-200/80 shadow-2xs transition-all cursor-pointer active:scale-95"
-            title="মার্কেটিং এর জন্য পরিষ্কার লিংক কপি করুন"
+            title="Share & Copy Product Link"
           >
             {copiedLink ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-700">ক্লিন লিংক কপি হয়েছে!</span>
+                <span className="text-emerald-700">Copied!</span>
               </>
             ) : (
               <>
-                <Link2 className="w-3.5 h-3.5 text-blue-600" />
-                <span>ক্লিন লিংক কপি করুন</span>
+                <Share2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Share</span>
               </>
             )}
           </button>
