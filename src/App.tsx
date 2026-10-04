@@ -19,16 +19,18 @@ import { ProductCard } from './components/ProductCard';
 import { supabase } from './lib/supabase';
 import { safeStorage, idbGet } from './utils/safeStorage';
 
-// Lazy-loaded pages for sub-second initial paint and minimal bundle
+// Core shopping pages imported directly for instant (0ms) zero-latency navigation
+import { ProductDetailPage } from './components/ProductDetailPage';
+import { CategoryPage } from './components/CategoryPage';
+import { CheckoutPage } from './components/CheckoutPage';
+import { AllCategoriesPage } from './components/AllCategoriesPage';
+import { SearchResultsPage } from './components/SearchResultsPage';
+
+// Secondary pages lazy-loaded to keep initial bundle ultra-lean
 const AdminPage = React.lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
-const ProductDetailPage = React.lazy(() => import('./components/ProductDetailPage').then(m => ({ default: m.ProductDetailPage })));
-const CategoryPage = React.lazy(() => import('./components/CategoryPage').then(m => ({ default: m.CategoryPage })));
-const CheckoutPage = React.lazy(() => import('./components/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
-const AllCategoriesPage = React.lazy(() => import('./components/AllCategoriesPage').then(m => ({ default: m.AllCategoriesPage })));
 const FeaturedProductsPage = React.lazy(() => import('./components/FeaturedProductsPage').then(m => ({ default: m.FeaturedProductsPage })));
 const AllProductsPage = React.lazy(() => import('./components/AllProductsPage').then(m => ({ default: m.AllProductsPage })));
 const BestSellersPage = React.lazy(() => import('./components/BestSellersPage').then(m => ({ default: m.BestSellersPage })));
-const SearchResultsPage = React.lazy(() => import('./components/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 const NewArrivalsPage = React.lazy(() => import('./components/NewArrivalsPage').then(m => ({ default: m.NewArrivalsPage })));
 const BundlesPage = React.lazy(() => import('./components/BundlesPage').then(m => ({ default: m.BundlesPage })));
 const ContactUsPage = React.lazy(() => import('./components/ContactUsPage').then(m => ({ default: m.ContactUsPage })));
