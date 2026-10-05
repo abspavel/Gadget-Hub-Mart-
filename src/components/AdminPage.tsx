@@ -522,7 +522,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       setProdShortDesc('');
       setProdFullDesc('');
       setProdWarranty('');
-      const defaultImg = 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80';
+      const defaultImg = '/og-image.jpeg';
       setProdImages([defaultImg]);
       setProdImageUrl(defaultImg);
       setProdFeatures(['অফিসিয়াল গ্যাজেট', 'ফাস্ট চার্জিং সাপোর্ট', 'প্রিমিয়াম মেটাল ফিনিশ']);
@@ -555,7 +555,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     if (prodSecTravel) sectionsList.push('Travel');
 
     const validImgs = prodImages.filter(x => Boolean(x && x.trim()));
-    const primaryImg = validImgs[0] || prodImageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80';
+    const primaryImg = validImgs[0] || prodImageUrl || '/og-image.jpeg';
     const finalImagesList = validImgs.length > 0 ? validImgs : [primaryImg];
 
     const updatedProduct: Product = {
@@ -656,7 +656,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       setEditingCategory(null);
       setCatLabel('');
       setCatDesc('');
-      setCatImageUrl('https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=400&q=80');
+      setCatImageUrl('/og-image.jpeg');
     }
     setIsCategoryModalOpen(true);
   };
@@ -675,7 +675,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       id: catId,
       label: catLabel.trim(),
       description: catDesc.trim(),
-      imageUrl: catImageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=400&q=80'
+      imageUrl: catImageUrl || '/og-image.jpeg'
     };
 
     // Check if category with this id or slug already exists to prevent duplicate keys
@@ -2155,7 +2155,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                         type="text"
                         value={customShortDomain}
                         onChange={(e) => setCustomShortDomainState(e.target.value)}
-                        placeholder="https://gadget-hub-mart.mrmiahctg07.workers.dev"
+                        placeholder="https://gadgethubmart.com"
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -2169,7 +2169,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                       type="button"
                       onClick={handleResetCustomDomain}
                       className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-all shrink-0"
-                      title="ডিফল্ট Workers ডোমেইনে রিসেট করুন"
+                      title="ডিফল্ট ডোমেইনে রিসেট করুন (https://gadgethubmart.com)"
                     >
                       রিসেট
                     </button>

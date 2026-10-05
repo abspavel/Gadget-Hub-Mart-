@@ -12,7 +12,7 @@ export interface ShortLinkItem {
 
 const STORAGE_KEY = 'ghm_short_links';
 export const CUSTOM_DOMAIN_STORAGE_KEY = 'ghm_custom_short_domain';
-export const DEFAULT_SHORT_DOMAIN = 'https://gadget-hub-mart.mrmiahctg07.workers.dev';
+export const DEFAULT_SHORT_DOMAIN = 'https://gadgethubmart.com';
 
 /**
  * Normalizes a domain by adding https if missing and stripping trailing slashes.
@@ -55,15 +55,23 @@ export function setSavedCustomDomain(domain: string): void {
  * Returns the effective base domain for generating short links and canonical product URLs.
  * Priority:
  * 1. Saved custom domain in Admin Panel
- * 2. VITE_SHORT_DOMAIN or SHORT_DOMAIN environment variable
- * 3. Default Workers / Custom Domain (https://gadget-hub-mart.mrmiahctg07.workers.dev)
+ * 2. If running directly on gadgethubmart.com or production domain
+ * 3. VITE_SHORT_DOMAIN or SHORT_DOMAIN environment variable
+ * 4. Default official domain (https://gadgethubmart.com)
  */
 export function getEffectiveShortDomain(): string {
   // 1. Saved custom domain from Admin Panel
   const saved = getSavedCustomDomain();
   if (saved) return normalizeDomain(saved);
 
-  // 2. Vite environment variable
+  // 2. Running directly on custom domain
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    if (window.location.hostname.includes('gadgethubmart.com')) {
+      return 'https://gadgethubmart.com';
+    }
+  }
+
+  // 3. Vite environment variable
   try {
     if (typeof import.meta !== 'undefined' && import.meta.env) {
       const envVal = import.meta.env.VITE_SHORT_DOMAIN || (import.meta.env as any).SHORT_DOMAIN;
@@ -73,7 +81,7 @@ export function getEffectiveShortDomain(): string {
     }
   } catch (e) {}
 
-  // 3. Fallback to default custom domain
+  // 4. Default official domain
   return DEFAULT_SHORT_DOMAIN;
 }
 
@@ -87,10 +95,10 @@ export function buildShortUrl(code: string, overrideDomain?: string): string {
 }
 
 /**
- * Builds a clean, single-line canonical product URL (e.g. https://gadget-hub-mart.mrmiahctg07.workers.dev/p/airpods-pro-2nd-gen).
+ * Builds a clean, single-line canonical product URL strictly under https://gadgethubmart.com/p/:slug
  */
 export function buildCanonicalProductUrl(slug: string, overrideDomain?: string): string {
-  const base = overrideDomain ? normalizeDomain(overrideDomain) : getEffectiveShortDomain();
+  const base = overrideDomain ? normalizeDomain(overrideDomain) : 'https://gadgethubmart.com';
   const cleanSlug = slugify(slug);
   return `${base}/p/${cleanSlug}`;
 }

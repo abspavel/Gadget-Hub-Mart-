@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, HelpCircle, Phone, Mail, RotateCcw, ShieldCheck, Truck } from 'lucide-react';
+import { X, HelpCircle, Phone, Mail, ShieldCheck, Truck } from 'lucide-react';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -41,20 +41,20 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
             <div className="flex items-center gap-2 font-bold text-gray-900">
               <Truck className="w-4 h-4 text-blue-600" />
-              <span>How does Free Shipping work?</span>
+              <span>How does Delivery work?</span>
             </div>
             <p className="text-gray-600 leading-relaxed pl-6">
-              All orders totaling $50 or more automatically qualify for complimentary standard courier delivery. Standard delivery takes 2–4 business days.
+              All orders are processed swiftly. Dhaka city delivery takes 24–48 hours, and outside Dhaka takes 48–72 hours with cash on delivery.
             </p>
           </div>
 
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
             <div className="flex items-center gap-2 font-bold text-gray-900">
-              <RotateCcw className="w-4 h-4 text-emerald-600" />
-              <span>What is the 30-Day Easy Return Policy?</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Official Warranty & Quality Check</span>
             </div>
             <p className="text-gray-600 leading-relaxed pl-6">
-              If an accessory doesn't fit your workflow or device, simply initiate a return within 30 days of delivery for a full refund or exchange.
+              Every gadget undergoes strict quality inspection before dispatch, and comes with official warranty support.
             </p>
           </div>
 

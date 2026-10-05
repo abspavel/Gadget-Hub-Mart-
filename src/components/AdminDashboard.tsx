@@ -598,7 +598,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         rating: 4.8,
                         reviewCount: 15,
                         imageType: 'gan_charger',
-                        imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80',
+                        imageUrl: '/og-image.jpeg',
                         description: 'High performance gadget with smart fast charging and official warranty.',
                         badge: 'New',
                         specs: { compatibility: 'Universal', material: 'ABS & Silicon', dimensions: 'Compact', warranty: '1 Year' },
@@ -618,7 +618,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {products.map((p) => (
                       <div key={p.id} className="p-4 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors">
                         <div className="flex items-center gap-3">
-                          <img src={p.imageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=200&q=80'} alt={p.name} className="w-12 h-12 object-cover rounded-xl bg-slate-900" />
+                          <img src={p.imageUrl || '/og-image.jpeg'} alt={p.name} className="w-12 h-12 object-cover rounded-xl bg-slate-900" />
                           <div>
                             <div className="text-xs font-bold text-white">{p.name}</div>
                             <div className="text-[10px] text-slate-400">{p.category} • <span className="text-blue-400 font-bold">{formatPrice(p.price)}</span></div>

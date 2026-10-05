@@ -62,7 +62,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Strictly Square Image Container with no colored borders */}
         <div className="relative aspect-square w-full rounded-xl bg-gray-50 overflow-hidden flex items-center justify-center border-0">
           <img
-            src={product.imageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80'}
+            src={product.imageUrl || (product.images && product.images[0]) || '/og-image.jpeg'}
             alt={product.name}
             width="400"
             height="400"

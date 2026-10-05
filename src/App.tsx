@@ -90,6 +90,7 @@ export type ViewState =
   | 'track-order'
   | 'help-center'
   | 'shipping-returns'
+  | 'shipping-policy'
   | 'warranty-policy'
   | 'contact-us'
   | 'about-us'
@@ -226,12 +227,24 @@ export const resolveViewFromUrl = (prods: Product[]): ViewState => {
     }
   }
 
-  // 3. Product path-based routes: /p/:slug or /product/:slug (e.g. /p/airpods-pro-2nd-gen)
+  // 3. Product path-based routes: /p/:slug, /product/:slug, /products/:slug, /item/:slug
   let productSlug: string | null = null;
   if (pathname.startsWith('/p/')) {
     productSlug = pathname.slice(3).trim();
   } else if (pathname.startsWith('/product/')) {
     productSlug = pathname.slice(9).trim();
+  } else if (pathname.startsWith('/products/')) {
+    productSlug = pathname.slice(10).trim();
+  } else if (pathname.startsWith('/item/')) {
+    productSlug = pathname.slice(6).trim();
+  }
+
+  // 4. Query parameter fallback: /?p=slug, /?product=slug, /?id=123, /?productId=123, /?slug=slug
+  if (!productSlug) {
+    const queryProduct = searchParams.get('p') || searchParams.get('product') || searchParams.get('slug') || searchParams.get('id') || searchParams.get('productId') || searchParams.get('item');
+    if (queryProduct) {
+      productSlug = queryProduct.trim();
+    }
   }
 
   if (productSlug) {
@@ -243,21 +256,8 @@ export const resolveViewFromUrl = (prods: Product[]): ViewState => {
       }
       return { type: 'product', product: foundProduct };
     } else {
-      // Return 404 - Never silently redirect to homepage!
+      // Return 404 - will re-evaluate immediately if database loads product
       return { type: '404', attemptedSlug: productSlug };
-    }
-  }
-
-  // 4. Legacy query parameter fallback: /product?id=123 or /?id=123
-  const legacyId = searchParams.get('id') || searchParams.get('productId');
-  if (legacyId) {
-    const foundLegacy = findProductBySlug(prods, legacyId);
-    if (foundLegacy) {
-      const canonical = `/p/${getProductSlug(foundLegacy)}`;
-      window.history.replaceState(null, '', canonical);
-      return { type: 'product', product: foundLegacy };
-    } else {
-      return { type: '404', attemptedSlug: legacyId };
     }
   }
 
@@ -282,7 +282,7 @@ export const resolveViewFromUrl = (prods: Product[]): ViewState => {
   const knownViews = [
     'all-categories', 'featured-products', 'all-products', 'best-sellers',
     'new-arrivals', 'bundles', 'gift-cards', 'track-order', 'help-center',
-    'shipping-returns', 'warranty-policy', 'contact-us', 'about-us',
+    'shipping-returns', 'shipping-policy', 'warranty-policy', 'contact-us', 'about-us',
     'careers', 'press', 'affiliates', 'privacy-policy', 'terms-of-service',
     'security', 'admin', 'checkout', 'profile'
   ];
@@ -472,11 +472,24 @@ export default function App() {
       }
     };
 
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    const isProductUrl = typeof window !== 'undefined' && 
+      (window.location.pathname.startsWith('/p/') || 
+       window.location.pathname.startsWith('/product/') || 
+       window.location.pathname.startsWith('/products/') || 
+       window.location.pathname.startsWith('/item/') || 
+       window.location.pathname.startsWith('/s/') ||
+       window.location.search.includes('product=') || 
+       window.location.search.includes('p=') || 
+       window.location.search.includes('id='));
+
+    if (isProductUrl) {
+      // Run immediately with zero delay so shared products display instantly!
+      fetchInitialData();
+    } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       const idleId = (window as any).requestIdleCallback(fetchInitialData, { timeout: 2500 });
       return () => (window as any).cancelIdleCallback?.(idleId);
     } else {
-      const timer = setTimeout(fetchInitialData, 1500);
+      const timer = setTimeout(fetchInitialData, 1000);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -636,7 +649,15 @@ export default function App() {
     const pathname = window.location.pathname;
     
     // Check if we are currently showing 404 or on a direct product / shortlink path
-    const isProductPath = pathname.startsWith('/p/') || pathname.startsWith('/product/') || pathname.startsWith('/s/');
+    const search = window.location.search;
+    const isProductPath = pathname.startsWith('/p/') || 
+      pathname.startsWith('/product/') || 
+      pathname.startsWith('/products/') || 
+      pathname.startsWith('/item/') || 
+      pathname.startsWith('/s/') ||
+      search.includes('p=') ||
+      search.includes('product=') ||
+      search.includes('id=');
     const isCurrently404 = typeof currentView === 'object' && currentView.type === '404';
 
     if (isProductPath || isCurrently404) {
@@ -1248,7 +1269,7 @@ export default function App() {
           />
         )}
 
-        {currentView === 'shipping-returns' && (
+        {(currentView === 'shipping-returns' || currentView === 'shipping-policy') && (
           <ShippingReturnsPage
             onBack={() => {
               setCurrentView('home');

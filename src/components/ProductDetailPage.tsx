@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Star, ShieldCheck, Truck, RotateCcw, Check, Plus, Minus, Zap, ArrowLeft, Link2, Copy, Share2 } from 'lucide-react';
+import { ShoppingBag, Star, ShieldCheck, Truck, Check, Plus, Minus, Zap, ArrowLeft, Link2, Copy, Share2 } from 'lucide-react';
 import { Product, Currency } from '../types';
 import { formatBdtPrice, ProductCard } from './ProductCard';
 import { trackViewContent } from '../utils/pixel';
 import { getProductSlug } from '../utils/slug';
 import { buildCanonicalProductUrl } from '../utils/shortLinks';
+import { updateProductSeo, resetDefaultSeo } from '../utils/seo';
 
 interface ProductDetailPageProps {
   product: Product;
@@ -24,6 +25,14 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   onSelectProduct,
   allProducts,
 }) => {
+  // Dynamic SEO & OpenGraph card updates for gadgethubmart.com
+  useEffect(() => {
+    updateProductSeo(product);
+    return () => {
+      resetDefaultSeo();
+    };
+  }, [product]);
+
   // Fire Meta Pixel ViewContent event on Product Detail Page
   useEffect(() => {
     const priceInBdt = Math.round(product.price || 0);
@@ -35,10 +44,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       currency: 'BDT'
     });
   }, [product.id, product.name, product.price, product.category]);
-  // Collect 2-3 images
+
+  // Collect 2-3 images (Never fallback to an unrelated watch photo)
+  const fallbackImg = product.imageUrl || '/og-image.jpeg';
   const imageList = product.images && product.images.length > 0 
     ? product.images 
-    : [product.imageUrl || 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80'];
+    : [fallbackImg];
 
   const activeImages = imageList.length >= 2 
     ? imageList 
@@ -68,10 +79,27 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     onBuyNow(product, quantity, selectedColor);
   };
 
-  const handleCopyCleanLink = () => {
+  // Smart share: produces clean, short, beautiful link strictly https://gadgethubmart.com/p/..
+  const handleCopyCleanLink = async () => {
     const slug = getProductSlug(product);
     const cleanUrl = buildCanonicalProductUrl(slug);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    const shareData = {
+      title: product.name,
+      url: cleanUrl
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(cleanUrl).then(() => {
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
@@ -117,12 +145,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           <button
             onClick={handleCopyCleanLink}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white px-3.5 py-2 rounded-full border border-gray-200/80 shadow-2xs transition-all cursor-pointer active:scale-95"
-            title="Share & Copy Product Link"
+            title={`Share: https://gadgethubmart.com/p/${getProductSlug(product)}`}
           >
             {copiedLink ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-700">Copied!</span>
+                <span className="text-emerald-700 font-bold">লিংক কপি হয়েছে!</span>
               </>
             ) : (
               <>
@@ -353,8 +381,8 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <span>ঢাকায় ৮০৳ • ঢাকার বাইরে ১২০৳</span>
                 </div>
                 <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl">
-                  <RotateCcw className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>৭ দিনের সহজ রিটার্ন</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>১০০% আসল ও কোয়ালিটি চেকড</span>
                 </div>
               </div>
             </div>

@@ -22,7 +22,8 @@ export function slugify(text: string): string {
 
 /**
  * Returns the definitive URL slug for a product.
- * If product.slug exists, use it; otherwise generate from product.name or fallback to product.id.
+ * Produces clean, concise slugs (e.g. "airpods-pro-2nd-gen" or "gan-65w-fast-charger")
+ * suitable for short sharing links like https://gadgethubmart.com/p/..
  */
 export function getProductSlug(product: Partial<Product>): string {
   if (!product) return 'product';
@@ -30,7 +31,9 @@ export function getProductSlug(product: Partial<Product>): string {
     return slugify(product.slug);
   }
   if (product.name && product.name.trim()) {
-    const fromName = slugify(product.name);
+    // Generate concise slug from the first few key words (max 5 words, max 45 chars)
+    const words = product.name.trim().split(/\s+/).slice(0, 5).join(' ');
+    const fromName = slugify(words);
     if (fromName) return fromName;
   }
   if (product.id) {
@@ -60,12 +63,14 @@ export function findProductBySlug(products: Product[], rawSlug: string): Product
   const byId = products.find(p => p.id && (p.id.toLowerCase() === searchSlug || slugify(p.id) === searchNormalized));
   if (byId) return byId;
 
-  // 4. Fuzzy match: if slug contains a strong identifying fragment
-  const byFragment = products.find(p => {
-    const s = slugify(p.name);
-    return s.includes(searchNormalized) || searchNormalized.includes(s);
-  });
-  if (byFragment) return byFragment;
+  // 4. Prefix match: slug starts with or matches closely (minimum 5 chars to avoid greedy collisions)
+  if (searchNormalized.length >= 5) {
+    const byPrefix = products.find(p => {
+      const s = p.slug ? slugify(p.slug) : slugify(p.name);
+      return s.startsWith(searchNormalized) || searchNormalized.startsWith(s);
+    });
+    if (byPrefix) return byPrefix;
+  }
 
   return undefined;
 }

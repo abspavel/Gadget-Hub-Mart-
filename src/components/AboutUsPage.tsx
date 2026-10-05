@@ -61,7 +61,7 @@ export const AboutUsPage: React.FC<AboutUsPageProps> = ({ onBack }) => {
                 <HeartHandshake className="w-4 h-4" />
               </div>
               <h4 className="font-bold text-gray-900 text-xs sm:text-sm">গ্রাহক সন্তুষ্টি</h4>
-              <p className="text-xs text-gray-500">সহজ রিটার্ন পলিসি ও ডেডিকেটেড আফটার-সেলস কাস্টমার সার্ভিস।</p>
+              <p className="text-xs text-gray-500">অফিসিয়াল ওয়ারেন্টি ও ডেডিকেটেড আফটার-সেলস কাস্টমার সার্ভিস।</p>
             </div>
 
             <div className="bg-purple-50/60 p-4 rounded-2xl space-y-1.5 border border-purple-100/60">

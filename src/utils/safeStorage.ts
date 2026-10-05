@@ -164,7 +164,7 @@ export const safeStorage = {
               if (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 2000) {
                 return {
                   ...item,
-                  imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=300&q=80'
+                  imageUrl: '/og-image.jpeg'
                 };
               }
               return item;

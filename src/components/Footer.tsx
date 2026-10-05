@@ -111,7 +111,7 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <button onClick={() => onNavigateView('shipping-returns')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Shipping & Returns
+                  Shipping Policy
                 </button>
               </li>
               <li>
@@ -179,7 +179,7 @@ export const Footer: React.FC<FooterProps> = ({
 
         {/* ================= BOTTOM COPYRIGHT & CREDITS BAR ================= */}
         <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-400">
-          <p>© 2026 Gadget Hub Mart. All rights reserved.</p>
+          <p>© 2026 Gadget Hub Mart (gadgethubmart.com). All rights reserved.</p>
 
           {/* Designed & Developed Credits */}
           <div className="flex items-center gap-1.5 text-xs text-slate-400 text-center flex-wrap justify-center">

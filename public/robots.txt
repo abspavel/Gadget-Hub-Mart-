@@ -7,4 +7,4 @@ User-agent: Googlebot
 Allow: /
 Disallow: /admin
 
-Sitemap: https://gadgethubmart.bd/sitemap.xml
+Sitemap: https://gadgethubmart.com/sitemap.xml

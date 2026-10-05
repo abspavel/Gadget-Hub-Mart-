@@ -2,7 +2,7 @@
   "name": "gadget-hub-mart",
   "compatibility_date": "2026-10-01",
   "vars": {
-    "SHORT_DOMAIN": "https://gadget-hub-mart.mrmiahctg07.workers.dev"
+    "SHORT_DOMAIN": "https://gadgethubmart.com"
   },
   "assets": {
     "directory": "./dist",

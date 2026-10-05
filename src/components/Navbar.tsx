@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   User, ShoppingBag, Menu, X, ChevronRight, Home,
-  Sparkles, Flame, PackageCheck, Truck, HelpCircle, RotateCcw, 
+  Sparkles, Flame, PackageCheck, Truck, HelpCircle, 
   ShieldCheck, Phone, Tag, Info
 } from 'lucide-react';
 import { Product, Currency, CategoryItem, CustomerUser } from '../types';
@@ -329,15 +329,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Shipping & Returns */}
+              {/* Shipping Policy */}
               {onNavigateView && (
                 <button
                   onClick={() => handleNav(() => onNavigateView('shipping-returns'))}
                   className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl hover:bg-gray-100 text-gray-700 hover:text-gray-950 font-medium transition-colors cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <RotateCcw className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>Shipping & Returns</span>
+                    <Truck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <span>Shipping Policy</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                 </button>
