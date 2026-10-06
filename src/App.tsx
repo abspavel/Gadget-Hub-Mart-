@@ -344,7 +344,16 @@ export default function App() {
     return INITIAL_DEMO_ORDERS;
   });
 
-  const [incompleteOrders, setIncompleteOrders] = useState<any[]>([]);
+  const [incompleteOrders, setIncompleteOrders] = useState<any[]>(() => {
+    try {
+      const saved = safeStorage.getItem('ghm_incomplete_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
 
   const [subscribers, setSubscribers] = useState<any[]>(() => {
     try {
@@ -506,6 +515,39 @@ export default function App() {
             safeStorage.setItem('ghm_orders', JSON.stringify(merged));
             return merged;
           });
+        }
+
+        // 5. Incomplete Orders Sync from Supabase
+        try {
+          const { data: dbIncOrders } = await supabase
+            .from('incomplete_orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (dbIncOrders && Array.isArray(dbIncOrders) && dbIncOrders.length > 0) {
+            const mappedInc = dbIncOrders.map((inc: any) => ({
+              id: inc.id,
+              phone: inc.phone,
+              customerName: inc.customer_name || inc.customerName || 'Anonymous Customer',
+              address: inc.address || '',
+              cartSummary: inc.cart_summary || inc.cartSummary || '',
+              total: Number(inc.total || 0),
+              date: inc.created_at ? new Date(inc.created_at).toLocaleDateString('en-CA') : (inc.date || new Date().toLocaleTimeString())
+            }));
+
+            setIncompleteOrders(prev => {
+              const map = new Map<string, any>();
+              mappedInc.forEach(i => map.set(i.phone, i));
+              prev.forEach(i => {
+                if (!map.has(i.phone)) map.set(i.phone, i);
+              });
+              const merged = Array.from(map.values());
+              safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(merged));
+              return merged;
+            });
+          }
+        } catch (incErr) {
+          console.log('Incomplete orders initial sync note:', incErr);
         }
       } catch (err) {
         console.log('Initial data sync note:', err);
@@ -1083,6 +1125,10 @@ export default function App() {
               safeStorage.setItem('ghm_orders', JSON.stringify(ords));
             }}
             incompleteOrders={incompleteOrders}
+            onUpdateIncompleteOrders={(incs) => {
+              setIncompleteOrders(incs);
+              safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(incs));
+            }}
             subscribers={subscribers}
             banners={banners}
             onUpdateBanners={(bns) => {
@@ -1226,7 +1272,11 @@ export default function App() {
             }}
             onIncompleteOrder={async (details) => {
               const inc = { id: Date.now().toString(), ...details, date: new Date().toLocaleTimeString() };
-              setIncompleteOrders(prev => [inc, ...prev.filter(x => x.phone !== details.phone)]);
+              setIncompleteOrders(prev => {
+                const next = [inc, ...prev.filter(x => x.phone !== details.phone)];
+                safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(next));
+                return next;
+              });
 
               try {
                 const supabase = await getSupabase();

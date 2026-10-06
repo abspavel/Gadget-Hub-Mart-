@@ -28,6 +28,7 @@ interface AdminPageProps {
   orders: Order[];
   onUpdateOrders: (orders: Order[]) => void;
   incompleteOrders: IncompleteOrder[];
+  onUpdateIncompleteOrders?: (incOrders: IncompleteOrder[]) => void;
   subscribers: any[];
   banners: Banner[];
   onUpdateBanners: (banners: Banner[]) => void;
@@ -45,7 +46,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   onUpdateCategories,
   orders,
   onUpdateOrders,
-  incompleteOrders,
+  incompleteOrders = [],
+  onUpdateIncompleteOrders,
   subscribers,
   banners,
   onUpdateBanners,
@@ -94,8 +96,137 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'products' | 'categories' | 'banners' | 'coupons' | 'customers' | 'subscribers' | 'steadfast' | 'shortlinks'
+    'overview' | 'orders' | 'incomplete' | 'products' | 'categories' | 'banners' | 'coupons' | 'customers' | 'subscribers' | 'steadfast' | 'shortlinks' | 'settings'
   >('overview');
+
+  // Admin Credentials & Password Management State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [adminEmailSettingInput, setAdminEmailSettingInput] = useState(() => {
+    return safeStorage.getItem('ghm_admin_email') || 'admin@gadgethub.com';
+  });
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+
+  const handleChangeAdminPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeError('');
+
+    const storedPass = safeStorage.getItem('ghm_admin_password') || 'admin123';
+    if (currentPasswordInput.trim() !== storedPass) {
+      setPasswordChangeError('বর্তমান পাসওয়ার্ডটি সঠিক নয়!');
+      return;
+    }
+
+    if (newPasswordInput.trim().length < 6) {
+      setPasswordChangeError('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে!');
+      return;
+    }
+
+    if (newPasswordInput.trim() !== confirmPasswordInput.trim()) {
+      setPasswordChangeError('নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড মিলছে না!');
+      return;
+    }
+
+    // Save new password
+    safeStorage.setItem('ghm_admin_password', newPasswordInput.trim());
+
+    // Save updated email if provided
+    if (adminEmailSettingInput.trim() && adminEmailSettingInput.includes('@')) {
+      safeStorage.setItem('ghm_admin_email', adminEmailSettingInput.trim().toLowerCase());
+    }
+
+    showToast('এডমিন পাসওয়ার্ড ও তথ্য সফলভাবে আপডেট হয়েছে!');
+    setIsPasswordModalOpen(false);
+    setCurrentPasswordInput('');
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
+    setPasswordChangeError('');
+  };
+
+  // Incomplete Orders Search & Actions
+  const [incompleteSearch, setIncompleteSearch] = useState('');
+  
+  const filteredIncompleteOrders = useMemo(() => {
+    if (!incompleteSearch.trim()) return incompleteOrders;
+    const q = incompleteSearch.toLowerCase().trim();
+    return incompleteOrders.filter(
+      (inc) =>
+        inc.phone?.toLowerCase().includes(q) ||
+        inc.customerName?.toLowerCase().includes(q) ||
+        inc.cartSummary?.toLowerCase().includes(q) ||
+        inc.address?.toLowerCase().includes(q)
+    );
+  }, [incompleteOrders, incompleteSearch]);
+
+  const handleConvertIncompleteToOrder = (inc: IncompleteOrder) => {
+    const newOrd: Order = {
+      id: `GHM-${Math.floor(100000 + Math.random() * 900000)}`,
+      customerName: inc.customerName || 'Customer',
+      phone: inc.phone,
+      address: inc.address || 'ঢাকা (অসম্পূর্ণ ঠিকানা)',
+      items: [
+        {
+          productName: inc.cartSummary || 'Gadget Item',
+          quantity: 1,
+          price: inc.total || 0
+        }
+      ],
+      total: inc.total || 0,
+      status: 'Pending',
+      paymentMethod: 'ক্যাশ অন ডেলিভারি',
+      date: new Date().toLocaleDateString('en-CA')
+    };
+
+    // Add to regular orders
+    const nextOrders = [newOrd, ...orders];
+    onUpdateOrders(nextOrders);
+    safeStorage.setItem('ghm_orders', JSON.stringify(nextOrders));
+
+    // Remove from incomplete orders
+    const nextIncs = incompleteOrders.filter(x => x.id !== inc.id && x.phone !== inc.phone);
+    if (onUpdateIncompleteOrders) {
+      onUpdateIncompleteOrders(nextIncs);
+    }
+    safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(nextIncs));
+
+    showToast(`ইনকমপ্লিট অর্ডারটি সফলভাবে অর্ডার #${newOrd.id} এ রূপান্তর করা হয়েছে!`);
+
+    // Sync to Supabase
+    Promise.resolve(
+      supabase.from('orders').upsert({
+        id: newOrd.id,
+        customer_name: newOrd.customerName,
+        phone: newOrd.phone,
+        address: newOrd.address,
+        items: newOrd.items,
+        total: newOrd.total,
+        status: newOrd.status,
+        created_at: new Date().toISOString()
+      })
+    ).catch(() => {});
+
+    Promise.resolve(
+      supabase.from('incomplete_orders').delete().eq('id', inc.id)
+    ).catch(() => {});
+  };
+
+  const handleDeleteIncompleteOrder = (id: string, phone: string) => {
+    const nextIncs = incompleteOrders.filter(x => x.id !== id && x.phone !== phone);
+    if (onUpdateIncompleteOrders) {
+      onUpdateIncompleteOrders(nextIncs);
+    }
+    safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(nextIncs));
+    showToast('ইনকমপ্লিট অর্ডারটি তালিকা থেকে মুছে ফেলা হয়েছে');
+
+    Promise.resolve(
+      supabase.from('incomplete_orders').delete().or(`id.eq.${id},phone.eq.${phone}`)
+    ).catch(() => {});
+  };
 
   // Short Links State & Custom Domain
   const [shortLinks, setShortLinks] = useState<ShortLinkItem[]>(() => getShortLinks());
@@ -1093,11 +1224,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             type="button"
             onClick={() => fetchLiveOrdersFromDb(true)}
             disabled={isSyncingOrders}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
             title="ডাটাবেজ থেকে নতুন সব অর্ডার সিঙ্ক করুন"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOrders ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{isSyncingOrders ? 'সিঙ্ক হচ্ছে...' : 'লাইভ অর্ডার সিঙ্ক'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPasswordModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95 border border-slate-700/60"
+            title="এডমিন পাসওয়ার্ড পরিবর্তন করুন"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">পাসওয়ার্ড পরিবর্তন</span>
           </button>
 
           <button
@@ -1158,6 +1299,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               {pendingOrdersCount > 0 && (
                 <span className="ml-1 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-slate-950">
                   {pendingOrdersCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('incomplete')}
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'incomplete'
+                  ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              <PhoneCall className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>ইনকমপ্লিট অর্ডার (Incomplete)</span>
+              {incompleteOrders.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-slate-950">
+                  {incompleteOrders.length}
                 </span>
               )}
             </button>
@@ -1268,6 +1426,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               <span className="ml-1 text-[10px] text-cyan-400 font-bold bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">{shortLinks.length}</span>
             </button>
 
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400/50'
+                  : 'text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>পাসওয়ার্ড ও সিকিউরিটি</span>
+            </button>
+
           </nav>
         </aside>
 
@@ -1278,8 +1448,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-6">
               
-              {/* Stat Cards 4-Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Stat Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 
                 {/* Total Sales */}
                 <div className="bg-[#111c38] p-5 rounded-2xl border border-slate-800/80 shadow-xs space-y-2">
@@ -1320,6 +1490,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   </div>
                   <div className="text-[11px] text-slate-400">
                     {processingOrdersCount} প্রসেসিং • {deliveredOrdersCount} ডেলিভার্ড
+                  </div>
+                </div>
+
+                {/* Incomplete Checkouts */}
+                <div 
+                  onClick={() => setActiveTab('incomplete')}
+                  className="bg-[#111c38] hover:bg-[#152347] transition-all p-5 rounded-2xl border border-slate-800/80 shadow-xs space-y-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+                    <span>ইনকমপ্লিট অর্ডার</span>
+                    <PhoneCall className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-amber-400">
+                    {incompleteOrders.length} <span className="text-sm font-bold text-slate-400">ড্রপ-অফ</span>
+                  </div>
+                  <div className="text-[11px] text-amber-300/80 flex items-center justify-between">
+                    <span>চেকআউটে আটকানো নম্বর</span>
+                    <span className="text-[10px] underline font-bold">লিস্ট দেখুন &rarr;</span>
                   </div>
                 </div>
 
@@ -1632,6 +1820,141 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                                   onClick={() => handleDeleteOrder(ord.id)}
                                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/60 text-red-400 transition-colors cursor-pointer"
                                   title="অর্ডার মুছুন"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* ================= 2.1 TAB: INCOMPLETE ORDERS (ABANDONED CHECKOUTS) ================= */}
+          {activeTab === 'incomplete' && (
+            <div className="space-y-4">
+              
+              {/* Header & Search */}
+              <div className="bg-[#111c38] p-5 rounded-2xl border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                        <PhoneCall className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                        ইনকমপ্লিট অর্ডার ও পরিত্যক্ত চেকআউট (Abandoned Checkouts)
+                      </h2>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      গ্রাহকরা চেকআউটে মোবাইল নম্বর টাইপ করার পর অর্ডার সম্পন্ন না করলে তা স্বয়ংক্রিয়ভাবে এখানে সংরক্ষিত হয়। সরাসরি ফোন দিয়ে অর্ডার কনফার্ম করুন।
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-xs">
+                      মোট {incompleteOrders.length} টি ড্রপ-অফ রেকর্ড
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative w-full sm:w-80 pt-1">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-4" />
+                  <input
+                    type="text"
+                    placeholder="মোবাইল নম্বর, নাম বা প্রোডাক্ট খুঁজুন..."
+                    value={incompleteSearch}
+                    onChange={(e) => setIncompleteSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Incomplete Orders Table */}
+              <div className="bg-[#111c38] rounded-2xl border border-slate-800 overflow-hidden shadow-sm">
+                {filteredIncompleteOrders.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 text-xs space-y-2">
+                    <PhoneCall className="w-8 h-8 mx-auto text-amber-400/50" />
+                    <p className="font-bold text-slate-300">কোনো ইনকমপ্লিট অর্ডার পাওয়া যায়নি</p>
+                    <p className="text-slate-500 max-w-sm mx-auto text-[11px]">
+                      ভিজিটররা চেকআউটে ফোন নম্বর দিয়ে অর্ডার সম্পন্ন না করলে সাথে সাথে এখানে মোবাইল নম্বর ও কার্টের পণ্যসমূহ জমা হবে।
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 text-[11px] uppercase tracking-wider font-bold bg-[#0d162d]">
+                          <th className="py-3 px-4">মোবাইল নম্বর</th>
+                          <th className="py-3 px-4">কাস্টমার</th>
+                          <th className="py-3 px-4">কার্ট পণ্যসমূহ</th>
+                          <th className="py-3 px-4">মোট টাকা</th>
+                          <th className="py-3 px-4">তারিখ / সময়</th>
+                          <th className="py-3 px-4 text-right">অ্যাকশন</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-medium">
+                        {filteredIncompleteOrders.map((inc) => (
+                          <tr key={inc.id || inc.phone} className="hover:bg-slate-800/30 transition-colors">
+                            <td className="py-3.5 px-4 font-mono font-bold text-amber-400">
+                              <div className="flex items-center gap-1.5">
+                                <a 
+                                  href={`tel:${inc.phone}`}
+                                  className="hover:underline flex items-center gap-1 bg-amber-500/10 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/20 font-bold"
+                                  title="কাস্টমারকে সরাসরি কল করুন"
+                                >
+                                  <PhoneCall className="w-3 h-3 text-amber-400" />
+                                  <span>{inc.phone}</span>
+                                </a>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-white">
+                              <div>{inc.customerName || 'Anonymous Customer'}</div>
+                              {inc.address && (
+                                <div className="text-[10px] text-slate-400 font-normal line-clamp-1">{inc.address}</div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-300 max-w-xs">
+                              <span className="line-clamp-2 text-[11px] bg-slate-900/60 p-1.5 rounded-lg border border-slate-800/80">
+                                {inc.cartSummary || 'কার্টের পণ্য'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                              {formatBdtPrice(inc.total || 0)}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-400 text-[11px] whitespace-nowrap font-mono">
+                              {inc.date}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <a
+                                  href={`tel:${inc.phone}`}
+                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                  title="সরাসরি কল দিন"
+                                >
+                                  <PhoneCall className="w-3 h-3" />
+                                  <span>কল দিন</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConvertIncompleteToOrder(inc)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                  title="পেন্ডিং অর্ডারে রূপান্তর করুন"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>অর্ডার বানান</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteIncompleteOrder(inc.id, inc.phone)}
+                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 cursor-pointer transition-colors"
+                                  title="মুছে ফেলুন"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -2394,8 +2717,283 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             </div>
           )}
 
+          {/* ================= 11. TAB: ADMIN CREDENTIALS & SECURITY ================= */}
+          {activeTab === 'settings' && (
+            <div className="max-w-xl mx-auto space-y-6">
+              <div className="bg-[#111c38] p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-sm space-y-6">
+                
+                <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">এডমিন পাসওয়ার্ড ও সিকিউরিটি</h3>
+                    <p className="text-xs text-slate-400">আপনার অ্যাডমিন লগইন ইমেইল এবং সিক্রেট পাসওয়ার্ড পরিবর্তন করুন</p>
+                  </div>
+                </div>
+
+                {passwordChangeError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{passwordChangeError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleChangeAdminPassword} className="space-y-4 text-xs">
+                  
+                  {/* Admin Email */}
+                  <div>
+                    <label className="block font-bold text-slate-300 mb-1.5">
+                      এডমিন লগইন ইমেইল
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+                      <input
+                        type="email"
+                        required
+                        value={adminEmailSettingInput}
+                        onChange={(e) => setAdminEmailSettingInput(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current Password */}
+                  <div>
+                    <label className="block font-bold text-slate-300 mb-1.5">
+                      বর্তমান পাসওয়ার্ড <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPass ? 'text' : 'password'}
+                        required
+                        value={currentPasswordInput}
+                        onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                        placeholder="বর্তমান পাসওয়ার্ডটি লিখুন"
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPass(!showCurrentPass)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <label className="block font-bold text-slate-300 mb-1.5">
+                      নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর) <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNewPass ? 'text' : 'password'}
+                        required
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        placeholder="নতুন শক্তিশালী পাসওয়ার্ড লিখুন"
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPass(!showNewPass)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <label className="block font-bold text-slate-300 mb-1.5">
+                      নতুন পাসওয়ার্ড নিশ্চিত করুন <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPass ? 'text' : 'password'}
+                        required
+                        value={confirmPasswordInput}
+                        onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                        placeholder="পুনরায় নতুন পাসওয়ার্ড লিখুন"
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPass(!showConfirmPass)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>পাসওয়ার্ড ও ক্রেডেনশিয়াল আপডেট করুন</span>
+                    </button>
+                  </div>
+
+                </form>
+
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
+
+      {/* ================= MODAL: CHANGE ADMIN PASSWORD POPUP ================= */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#111c38] rounded-3xl border border-slate-700/80 max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in duration-150">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">এডমিন পাসওয়ার্ড পরিবর্তন</h3>
+                  <p className="text-[11px] text-slate-400">নিরাপদ নতুন পাসওয়ার্ড সেট করুন</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setPasswordChangeError('');
+                }}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {passwordChangeError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{passwordChangeError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangeAdminPassword} className="space-y-4 text-xs">
+              
+              {/* Admin Email */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">এডমিন লগইন ইমেইল</label>
+                <input
+                  type="email"
+                  required
+                  value={adminEmailSettingInput}
+                  onChange={(e) => setAdminEmailSettingInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Current Password */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  বর্তমান পাসওয়ার্ড <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    required
+                    value={currentPasswordInput}
+                    onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                    placeholder="বর্তমান পাসওয়ার্ড লিখুন"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর) <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    required
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    placeholder="নতুন পাসওয়ার্ড লিখুন"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm New Password */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  নতুন পাসওয়ার্ড নিশ্চিত করুন <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    required
+                    value={confirmPasswordInput}
+                    onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                    placeholder="পুনরায় নতুন পাসওয়ার্ড লিখুন"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setPasswordChangeError('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold cursor-pointer transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>পাসওয়ার্ড সংরক্ষণ করুন</span>
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL: ADD / EDIT PRODUCT ================= */}
       {isProductModalOpen && (
