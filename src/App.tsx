@@ -57,7 +57,7 @@ const GiftCardsPage = React.lazy(() => import('./components/GiftCardsPage').then
 
 import { ALL_PRODUCTS, CURRENCIES, CATEGORIES } from './data/products';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_BANNERS } from './data/initialData';
-import { Product, CartItem, Currency, CategoryItem, CustomerUser } from './types';
+import { Product, CartItem, Currency, CategoryItem, CustomerUser, Order } from './types';
 const getCurrentCustomer = (): CustomerUser | null => {
   try {
     const raw = safeStorage.getItem('ghm_active_customer');
@@ -466,6 +466,46 @@ export default function App() {
           }));
           setBanners(loadedBanners);
           safeStorage.setItem('ghm_banners', JSON.stringify(loadedBanners));
+        }
+
+        // 4. Orders Sync from Supabase (Never lose customer orders)
+        const { data: dbOrders } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (dbOrders && dbOrders.length > 0) {
+          const loadedOrders: any[] = dbOrders.map((o: any) => ({
+            id: o.id,
+            customerName: o.customer_name || o.customerName || 'Customer',
+            phone: o.phone || '',
+            email: o.email || '',
+            address: o.address || '',
+            thana: o.thana || '',
+            city: o.city || '',
+            deliveryZone: o.delivery_zone || o.deliveryZone || 'Standard Delivery',
+            paymentMethod: o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি',
+            items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
+            total: Number(o.total || 0),
+            status: o.status || 'Pending',
+            date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
+            steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
+            steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
+            steadfastStatus: o.steadfast_status || o.steadfastStatus
+          }));
+
+          setOrders(prev => {
+            const orderMap = new Map<string, any>();
+            loadedOrders.forEach(ord => orderMap.set(ord.id, ord));
+            prev.forEach(ord => {
+              if (!orderMap.has(ord.id)) {
+                orderMap.set(ord.id, ord);
+              }
+            });
+            const merged = Array.from(orderMap.values());
+            safeStorage.setItem('ghm_orders', JSON.stringify(merged));
+            return merged;
+          });
         }
       } catch (err) {
         console.log('Initial data sync note:', err);
@@ -1022,7 +1062,7 @@ export default function App() {
         {currentView === 'admin' && (
           <AdminPage
             onBack={() => {
-              setCurrentView('home');
+              navigateView('home');
               window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
             }}
             products={products}
@@ -1137,16 +1177,27 @@ export default function App() {
             onRemoveItem={handleRemoveFromCart}
             onUpdateQuantity={handleUpdateCartQuantity}
             onOrderSuccess={async (id, orderDetails) => {
-              const newOrd = { 
+              const newOrd: Order = { 
                 id, 
-                ...orderDetails, 
+                customerName: orderDetails.customerName || 'Customer',
+                phone: orderDetails.phone || '',
                 email: orderDetails.email || currentCustomer?.email || '',
+                address: orderDetails.address || '',
+                thana: orderDetails.thana || '',
+                city: orderDetails.city || '',
+                deliveryZone: orderDetails.deliveryZone || 'Standard Delivery',
+                paymentMethod: 'ক্যাশ অন ডেলিভারি',
+                items: orderDetails.items || [],
+                total: Number(orderDetails.total || 0),
                 status: 'Pending' as const, 
                 date: new Date().toLocaleDateString('en-CA') 
               };
-              const updatedOrders = [newOrd, ...orders];
-              setOrders(updatedOrders);
-              safeStorage.setItem('ghm_orders', JSON.stringify(updatedOrders));
+
+              setOrders(prev => {
+                const next = [newOrd, ...prev.filter(o => o.id !== id)];
+                safeStorage.setItem('ghm_orders', JSON.stringify(next));
+                return next;
+              });
               showToast(`Order #${id} confirmed successfully!`);
 
               // Automatically deduct stock for bought items
@@ -1160,12 +1211,17 @@ export default function App() {
                   phone: newOrd.phone,
                   email: newOrd.email || null,
                   address: newOrd.address,
+                  thana: newOrd.thana || null,
+                  city: newOrd.city || null,
+                  delivery_zone: newOrd.deliveryZone || null,
+                  payment_method: newOrd.paymentMethod,
                   items: newOrd.items,
                   total: newOrd.total,
-                  status: newOrd.status
+                  status: newOrd.status,
+                  created_at: new Date().toISOString()
                 });
               } catch (e) {
-                console.error(e);
+                console.error('Supabase orders upsert note:', e);
               }
             }}
             onIncompleteOrder={async (details) => {
@@ -1378,7 +1434,7 @@ export default function App() {
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenAdmin={() => {
-            setCurrentView('admin');
+            navigateView('admin');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
         />

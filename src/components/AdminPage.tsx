@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product, Currency, CategoryItem, Order, IncompleteOrder, Coupon, Banner, Customer, SteadfastConfig } from '../types';
 import { supabase } from '../lib/supabase';
 import { safeStorage, compressImage } from '../utils/safeStorage';
@@ -123,6 +123,73 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     setSavedCustomDomain(DEFAULT_SHORT_DOMAIN);
     showToast(`ডিফল্ট ডোমেইন সেট করা হয়েছে: ${DEFAULT_SHORT_DOMAIN}`);
   };
+
+  // Live Orders Sync State & Handler
+  const [isSyncingOrders, setIsSyncingOrders] = useState(false);
+
+  const fetchLiveOrdersFromDb = useCallback(async (isManual = false) => {
+    setIsSyncingOrders(true);
+    try {
+      const { data: dbOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (dbOrders && Array.isArray(dbOrders)) {
+        const loaded: Order[] = dbOrders.map((o: any) => ({
+          id: o.id,
+          customerName: o.customer_name || o.customerName || 'Customer',
+          phone: o.phone || '',
+          email: o.email || '',
+          address: o.address || '',
+          thana: o.thana || '',
+          city: o.city || '',
+          deliveryZone: o.delivery_zone || o.deliveryZone || 'Standard Delivery',
+          paymentMethod: o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি',
+          items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
+          total: Number(o.total || 0),
+          status: o.status || 'Pending',
+          date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
+          steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
+          steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
+          steadfastStatus: o.steadfast_status || o.steadfastStatus
+        }));
+
+        // Merge loaded orders with any local orders (keyed by order ID)
+        const orderMap = new Map<string, Order>();
+        loaded.forEach(ord => orderMap.set(ord.id, ord));
+        orders.forEach(ord => {
+          if (!orderMap.has(ord.id)) {
+            orderMap.set(ord.id, ord);
+          }
+        });
+        const finalOrders = Array.from(orderMap.values());
+        onUpdateOrders(finalOrders);
+        safeStorage.setItem('ghm_orders', JSON.stringify(finalOrders));
+        if (isManual) {
+          showToast(`লাইভ অর্ডার সিঙ্ক সম্পন্ন! মোট ${finalOrders.length} টি অর্ডার আপডেট হয়েছে`);
+        }
+      }
+    } catch (err) {
+      console.log('Orders fetch note:', err);
+    } finally {
+      setIsSyncingOrders(false);
+    }
+  }, [orders, onUpdateOrders]);
+
+  // Keep browser URL strictly on /admin while AdminPage is open
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
+      window.history.replaceState(null, '', '/admin');
+    }
+  }, []);
+
+  // Automatically fetch live orders on initial mount and when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchLiveOrdersFromDb(false);
+    }
+  }, [isAuthenticated]);
 
   // Search & Filters
   const [productSearch, setProductSearch] = useState('');
@@ -978,6 +1045,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
             <button
+              type="button"
               onClick={onBack}
               className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
             >
@@ -1022,18 +1090,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         {/* Header Right Actions */}
         <div className="flex items-center gap-2.5">
           <button
+            type="button"
+            onClick={() => fetchLiveOrdersFromDb(true)}
+            disabled={isSyncingOrders}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
+            title="ডাটাবেজ থেকে নতুন সব অর্ডার সিঙ্ক করুন"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOrders ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isSyncingOrders ? 'সিঙ্ক হচ্ছে...' : 'লাইভ অর্ডার সিঙ্ক'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onBack}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
             title="লাইভ ওয়েবসাইটে ফিরে যান"
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe className="w-3.5 h-3.5 text-blue-400" />
             <span className="hidden sm:inline">ওয়েবসাইট দেখুন</span>
           </button>
 
           <button
+            type="button"
             onClick={() => {
               safeStorage.removeItem('ghm_admin_authenticated');
               setIsAuthenticated(false);
+              showToast('এডমিন প্যানেল থেকে সফলভাবে লগআউট হয়েছেন');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
             title="এডমিন লগআউট"
@@ -1302,13 +1384,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     <Clock className="w-4 h-4 text-blue-400" />
                     <span>সর্বশেষ অর্ডারসমূহ (Recent Orders)</span>
                   </h3>
-                  <button
-                    onClick={() => setActiveTab('orders')}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>সব অর্ডার দেখুন ({orders.length})</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchLiveOrdersFromDb(true)}
+                      disabled={isSyncingOrders}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                      title="অর্ডার ডাটাবেজ থেকে রিলোড করুন"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncingOrders ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingOrders ? 'সিঙ্ক...' : 'সিঙ্ক'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('orders')}
+                      className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>সব অর্ডার ({orders.length})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {orders.length === 0 ? (
@@ -1407,15 +1502,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   ))}
                 </div>
 
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    placeholder="অর্ডার আইডি, ফোন বা নাম..."
-                    value={orderSearch}
-                    onChange={(e) => setOrderSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => fetchLiveOrdersFromDb(true)}
+                    disabled={isSyncingOrders}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer transition-all shrink-0 active:scale-95 shadow-sm"
+                    title="ডাটাবেজ থেকে সরাসরি নতুন অর্ডার রিলোড করুন"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOrders ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingOrders ? 'সিঙ্ক হচ্ছে...' : 'লাইভ অর্ডার সিঙ্ক'}</span>
+                  </button>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="অর্ডার আইডি, ফোন বা নাম..."
+                      value={orderSearch}
+                      onChange={(e) => setOrderSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
