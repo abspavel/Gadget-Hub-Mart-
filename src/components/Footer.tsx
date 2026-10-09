@@ -144,7 +144,7 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigateView('admin')} className="text-blue-400 hover:text-blue-300 transition-colors font-bold cursor-pointer text-left">
+                <button onClick={() => onOpenAdmin ? onOpenAdmin() : onNavigateView('admin')} className="text-blue-400 hover:text-blue-300 transition-colors font-bold cursor-pointer text-left">
                   Admin Panel
                 </button>
               </li>

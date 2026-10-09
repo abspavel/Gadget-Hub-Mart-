@@ -72,6 +72,7 @@ import { Check, ShoppingBag, Zap, ShieldAlert, ArrowRight } from 'lucide-react';
 import { cleanTrackingParameters } from './utils/urlCleaner';
 import { getProductSlug, findProductBySlug, ensureProductSlugs, slugify } from './utils/slug';
 import { resolveShortLink } from './utils/shortLinks';
+import { getDeletedOrderIds, broadcastNewOrder } from './utils/orderSync';
 import { ProductNotFoundPage } from './components/ProductNotFoundPage';
 
 export type ViewState =
@@ -293,6 +294,54 @@ export const resolveViewFromUrl = (prods: Product[]): ViewState => {
   return 'home';
 };
 
+class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    console.error('Admin Panel error caught by boundary:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#0f172a] text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
+            <span className="text-2xl font-black">!</span>
+          </div>
+          <h2 className="text-lg font-bold text-white mb-2">এডমিন প্যানেলে সাময়িক সমস্যা হয়েছে</h2>
+          <p className="text-xs text-slate-400 max-w-sm mb-5">
+            ডাটা প্রসেসিংয়ের সময় একটি সমস্যা হয়েছে। নিচের বাটনে ক্লিক করে পুনরায় চেষ্টা করুন।
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false })}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm"
+            >
+              পুনরায় চেষ্টা করুন
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl cursor-pointer"
+            >
+              পেজ রিফ্রেশ
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
@@ -337,11 +386,17 @@ export default function App() {
 
   // Admin Data State (with safeStorage persistence)
   const [orders, setOrders] = useState<any[]>(() => {
+    const deletedIds = getDeletedOrderIds();
     try {
       const saved = safeStorage.getItem('ghm_orders');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(o => o && o.id && !deletedIds.has(o.id));
+        }
+      }
     } catch (e) {}
-    return INITIAL_DEMO_ORDERS;
+    return INITIAL_DEMO_ORDERS.filter(o => o && o.id && !deletedIds.has(o.id));
   });
 
   const [incompleteOrders, setIncompleteOrders] = useState<any[]>(() => {
@@ -390,10 +445,10 @@ export default function App() {
     ];
   });
 
-  // Load Data from Supabase & IndexedDB on mount
+  // Load Data from Supabase & IndexedDB on mount (Parallel & Zero-Delay)
   useEffect(() => {
     const fetchInitialData = async () => {
-      // IndexedDB fallback hydration
+      // IndexedDB fallback hydration for products
       try {
         const idbProds = await idbGet<Product[]>('ghm_products');
         if (idbProds && Array.isArray(idbProds) && idbProds.length > 0) {
@@ -403,177 +458,200 @@ export default function App() {
 
       try {
         const supabase = await getSupabase();
-        // 1. Categories Sync
-        const { data: dbCategories } = await supabase
-          .from('categories')
-          .select('*')
-          .order('created_at', { ascending: false });
 
-        if (dbCategories && dbCategories.length > 0) {
-          const loadedCats: CategoryItem[] = dbCategories.map((c: any) => ({
-            id: c.id,
-            label: c.label || c.name || c.id,
-            imageUrl: c.image_url || c.imageUrl,
-            description: c.description
-          }));
-          const dedupedCats = deduplicateCategories(loadedCats);
-          setCategories(dedupedCats);
-          safeStorage.setItem('ghm_categories', JSON.stringify(dedupedCats));
-        }
+        // Run syncs in parallel so orders or products never get blocked!
+        await Promise.allSettled([
+          // 1. Categories Sync
+          (async () => {
+            try {
+              const { data: dbCategories } = await supabase
+                .from('categories')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-        // 2. Products Sync
-        const { data: dbProducts } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (dbProducts && dbProducts.length > 0) {
-          const loadedProds: Product[] = dbProducts.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            price: Number(p.price),
-            originalPrice: p.original_price ? Number(p.original_price) : undefined,
-            stockCount: p.stock_count ?? 50,
-            rating: p.rating ? Number(p.rating) : 4.9,
-            reviewCount: p.review_count ?? 15,
-            imageUrl: p.image_url,
-            images: p.images && Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url],
-            colors: p.colors || ['Black'],
-            shortDescription: p.short_description || p.description,
-            fullDescription: p.full_description || p.description,
-            description: p.short_description || p.description,
-            warranty: p.warranty,
-            features: p.features || ['Official gadget', 'High durability'],
-            specs: p.specs || {},
-            isFeatured: p.is_featured,
-            isBestSeller: p.is_best_seller,
-            isNewArrival: p.is_new_arrival,
-            isBundle: p.is_bundle,
-            isTravel: p.is_travel,
-            sections: p.sections || ['All Products']
-          }));
-          const dedupedProds = deduplicateProducts(loadedProds);
-          setProducts(dedupedProds);
-          safeStorage.setItem('ghm_products', JSON.stringify(dedupedProds));
-        }
-
-        // 3. Banners Sync
-        const { data: dbBanners } = await supabase
-          .from('banners')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (dbBanners && dbBanners.length > 0) {
-          const loadedBanners = dbBanners.map((b: any) => ({
-            id: b.id,
-            title: b.title,
-            subtitle: b.subtitle,
-            imageUrl: b.image_url,
-            type: b.type,
-            isActive: b.is_active ?? true
-          }));
-          setBanners(loadedBanners);
-          safeStorage.setItem('ghm_banners', JSON.stringify(loadedBanners));
-        }
-
-        // 4. Orders Sync from Supabase (Never lose customer orders)
-        const { data: dbOrders } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (dbOrders && dbOrders.length > 0) {
-          const loadedOrders: any[] = dbOrders.map((o: any) => ({
-            id: o.id,
-            customerName: o.customer_name || o.customerName || 'Customer',
-            phone: o.phone || '',
-            email: o.email || '',
-            address: o.address || '',
-            thana: o.thana || '',
-            city: o.city || '',
-            deliveryZone: o.delivery_zone || o.deliveryZone || 'Standard Delivery',
-            paymentMethod: o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি',
-            items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
-            total: Number(o.total || 0),
-            status: o.status || 'Pending',
-            date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
-            steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
-            steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
-            steadfastStatus: o.steadfast_status || o.steadfastStatus
-          }));
-
-          setOrders(prev => {
-            const orderMap = new Map<string, any>();
-            loadedOrders.forEach(ord => orderMap.set(ord.id, ord));
-            prev.forEach(ord => {
-              if (!orderMap.has(ord.id)) {
-                orderMap.set(ord.id, ord);
+              if (dbCategories && dbCategories.length > 0) {
+                const loadedCats: CategoryItem[] = dbCategories.map((c: any) => ({
+                  id: c.id,
+                  label: c.label || c.name || c.id,
+                  imageUrl: c.image_url || c.imageUrl,
+                  description: c.description
+                }));
+                const dedupedCats = deduplicateCategories(loadedCats);
+                setCategories(dedupedCats);
+                safeStorage.setItem('ghm_categories', JSON.stringify(dedupedCats));
               }
-            });
-            const merged = Array.from(orderMap.values());
-            safeStorage.setItem('ghm_orders', JSON.stringify(merged));
-            return merged;
-          });
-        }
+            } catch (e) {
+              console.log('Categories initial sync note:', e);
+            }
+          })(),
 
-        // 5. Incomplete Orders Sync from Supabase
-        try {
-          const { data: dbIncOrders } = await supabase
-            .from('incomplete_orders')
-            .select('*')
-            .order('created_at', { ascending: false });
+          // 2. Products Sync
+          (async () => {
+            try {
+              const { data: dbProducts } = await supabase
+                .from('products')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-          if (dbIncOrders && Array.isArray(dbIncOrders) && dbIncOrders.length > 0) {
-            const mappedInc = dbIncOrders.map((inc: any) => ({
-              id: inc.id,
-              phone: inc.phone,
-              customerName: inc.customer_name || inc.customerName || 'Anonymous Customer',
-              address: inc.address || '',
-              cartSummary: inc.cart_summary || inc.cartSummary || '',
-              total: Number(inc.total || 0),
-              date: inc.created_at ? new Date(inc.created_at).toLocaleDateString('en-CA') : (inc.date || new Date().toLocaleTimeString())
-            }));
+              if (dbProducts && dbProducts.length > 0) {
+                const loadedProds: Product[] = dbProducts.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  category: p.category,
+                  price: Number(p.price),
+                  originalPrice: p.original_price ? Number(p.original_price) : undefined,
+                  stockCount: p.stock_count ?? 50,
+                  rating: p.rating ? Number(p.rating) : 4.9,
+                  reviewCount: p.review_count ?? 15,
+                  imageUrl: p.image_url,
+                  images: p.images && Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url],
+                  colors: p.colors || ['Black'],
+                  shortDescription: p.short_description || p.description,
+                  fullDescription: p.full_description || p.description,
+                  description: p.short_description || p.description,
+                  warranty: p.warranty,
+                  features: p.features || ['Official gadget', 'High durability'],
+                  specs: p.specs || {},
+                  isFeatured: p.is_featured,
+                  isBestSeller: p.is_best_seller,
+                  isNewArrival: p.is_new_arrival,
+                  isBundle: p.is_bundle,
+                  isTravel: p.is_travel,
+                  sections: p.sections || ['All Products']
+                }));
+                const dedupedProds = deduplicateProducts(loadedProds);
+                setProducts(dedupedProds);
+                safeStorage.setItem('ghm_products', JSON.stringify(dedupedProds));
+              }
+            } catch (e) {
+              console.log('Products initial sync note:', e);
+            }
+          })(),
 
-            setIncompleteOrders(prev => {
-              const map = new Map<string, any>();
-              mappedInc.forEach(i => map.set(i.phone, i));
-              prev.forEach(i => {
-                if (!map.has(i.phone)) map.set(i.phone, i);
-              });
-              const merged = Array.from(map.values());
-              safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(merged));
-              return merged;
-            });
-          }
-        } catch (incErr) {
-          console.log('Incomplete orders initial sync note:', incErr);
-        }
+          // 3. Banners Sync
+          (async () => {
+            try {
+              const { data: dbBanners } = await supabase
+                .from('banners')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+              if (dbBanners && dbBanners.length > 0) {
+                const loadedBanners = dbBanners.map((b: any) => ({
+                  id: b.id,
+                  title: b.title,
+                  subtitle: b.subtitle,
+                  imageUrl: b.image_url,
+                  type: b.type,
+                  isActive: b.is_active ?? true
+                }));
+                setBanners(loadedBanners);
+                safeStorage.setItem('ghm_banners', JSON.stringify(loadedBanners));
+              }
+            } catch (e) {
+              console.log('Banners initial sync note:', e);
+            }
+          })(),
+
+          // 4. Orders Sync from Supabase (Never lose customer orders, permanent delete protection)
+          (async () => {
+            try {
+              const { data: dbOrders } = await supabase
+                .from('orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+              if (dbOrders && Array.isArray(dbOrders) && dbOrders.length > 0) {
+                const deletedIds = getDeletedOrderIds();
+                const loadedOrders: any[] = dbOrders
+                  .map((o: any) => {
+                    let parsedItems: any[] = [];
+                    try {
+                      if (Array.isArray(o.items)) parsedItems = o.items;
+                      else if (typeof o.items === 'string') parsedItems = JSON.parse(o.items);
+                    } catch (e) {}
+
+                    return {
+                      id: String(o.id || ''),
+                      customerName: String(o.customer_name || o.customerName || 'Customer'),
+                      phone: String(o.phone || ''),
+                      email: String(o.email || ''),
+                      address: String(o.address || ''),
+                      thana: String(o.thana || ''),
+                      city: String(o.city || ''),
+                      deliveryZone: String(o.delivery_zone || o.deliveryZone || 'Standard Delivery'),
+                      paymentMethod: String(o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি'),
+                      items: parsedItems,
+                      total: Number(o.total || 0),
+                      status: String(o.status || 'Pending'),
+                      date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
+                      steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
+                      steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
+                      steadfastStatus: o.steadfast_status || o.steadfastStatus
+                    };
+                  })
+                  .filter((o: any) => o.id && !deletedIds.has(o.id));
+
+                setOrders(prev => {
+                  const orderMap = new Map<string, any>();
+                  loadedOrders.forEach(ord => orderMap.set(ord.id, ord));
+                  prev.forEach(ord => {
+                    if (ord && ord.id && !deletedIds.has(ord.id) && !orderMap.has(ord.id)) {
+                      orderMap.set(ord.id, ord);
+                    }
+                  });
+                  const merged = Array.from(orderMap.values()).filter((o: any) => !deletedIds.has(o.id));
+                  safeStorage.setItem('ghm_orders', JSON.stringify(merged));
+                  return merged;
+                });
+              }
+            } catch (e) {
+              console.log('Orders initial sync note:', e);
+            }
+          })(),
+
+          // 5. Incomplete Orders Sync from Supabase
+          (async () => {
+            try {
+              const { data: dbIncOrders } = await supabase
+                .from('incomplete_orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+              if (dbIncOrders && Array.isArray(dbIncOrders) && dbIncOrders.length > 0) {
+                const mappedInc = dbIncOrders.map((inc: any) => ({
+                  id: String(inc.id || ''),
+                  phone: String(inc.phone || ''),
+                  customerName: String(inc.customer_name || inc.customerName || 'Anonymous Customer'),
+                  address: String(inc.address || ''),
+                  cartSummary: String(inc.cart_summary || inc.cartSummary || ''),
+                  total: Number(inc.total || 0),
+                  date: inc.created_at ? new Date(inc.created_at).toLocaleDateString('en-CA') : (inc.date || new Date().toLocaleTimeString())
+                }));
+
+                setIncompleteOrders(prev => {
+                  const map = new Map<string, any>();
+                  mappedInc.forEach(i => map.set(i.phone, i));
+                  prev.forEach(i => {
+                    if (i && i.phone && !map.has(i.phone)) map.set(i.phone, i);
+                  });
+                  const merged = Array.from(map.values());
+                  safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(merged));
+                  return merged;
+                });
+              }
+            } catch (incErr) {
+              console.log('Incomplete orders initial sync note:', incErr);
+            }
+          })()
+        ]);
       } catch (err) {
         console.log('Initial data sync note:', err);
       }
     };
 
-    const isProductUrl = typeof window !== 'undefined' && 
-      (window.location.pathname.startsWith('/p/') || 
-       window.location.pathname.startsWith('/product/') || 
-       window.location.pathname.startsWith('/products/') || 
-       window.location.pathname.startsWith('/item/') || 
-       window.location.pathname.startsWith('/s/') ||
-       window.location.search.includes('product=') || 
-       window.location.search.includes('p=') || 
-       window.location.search.includes('id='));
-
-    if (isProductUrl) {
-      // Run immediately with zero delay so shared products display instantly!
-      fetchInitialData();
-    } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const idleId = (window as any).requestIdleCallback(fetchInitialData, { timeout: 2500 });
-      return () => (window as any).cancelIdleCallback?.(idleId);
-    } else {
-      const timer = setTimeout(fetchInitialData, 1000);
-      return () => clearTimeout(timer);
-    }
+    // Execute immediately without delay
+    fetchInitialData();
   }, []);
 
   // Meta Pixel PageView tracking on view/route changes
@@ -902,17 +980,17 @@ export default function App() {
           currentCurrency={currentCurrency}
           onSelectCurrency={handleSelectCurrency}
           onOpenTrackOrder={() => {
-            setCurrentView('track-order');
+            navigateView('track-order');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenHelp={() => {
-            setCurrentView('help-center');
+            navigateView('help-center');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenCategory={handleSelectCategory}
           categories={categories}
           onNavigateView={(view) => {
-            setCurrentView(view as any);
+            navigateView(view as any);
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
         />
@@ -1102,47 +1180,49 @@ export default function App() {
         )}
 
         {currentView === 'admin' && (
-          <AdminPage
-            onBack={() => {
-              navigateView('home');
-              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-            }}
-            products={products}
-            onUpdateProducts={(prods) => {
-              const dedup = deduplicateProducts(prods);
-              setProducts(dedup);
-              safeStorage.setItem('ghm_products', JSON.stringify(dedup));
-            }}
-            categories={categories}
-            onUpdateCategories={(cats) => {
-              const dedup = deduplicateCategories(cats);
-              setCategories(dedup);
-              safeStorage.setItem('ghm_categories', JSON.stringify(dedup));
-            }}
-            orders={orders}
-            onUpdateOrders={(ords) => {
-              setOrders(ords);
-              safeStorage.setItem('ghm_orders', JSON.stringify(ords));
-            }}
-            incompleteOrders={incompleteOrders}
-            onUpdateIncompleteOrders={(incs) => {
-              setIncompleteOrders(incs);
-              safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(incs));
-            }}
-            subscribers={subscribers}
-            banners={banners}
-            onUpdateBanners={(bns) => {
-              setBanners(bns);
-              safeStorage.setItem('ghm_banners', JSON.stringify(bns));
-            }}
-            coupons={coupons}
-            onUpdateCoupons={(cps) => {
-              setCoupons(cps);
-              safeStorage.setItem('ghm_coupons', JSON.stringify(cps));
-            }}
-            currentCurrency={currentCurrency}
-            onAdjustStock={adjustProductStock}
-          />
+          <AdminErrorBoundary>
+            <AdminPage
+              onBack={() => {
+                navigateView('home');
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+              }}
+              products={products}
+              onUpdateProducts={(prods) => {
+                const dedup = deduplicateProducts(prods);
+                setProducts(dedup);
+                safeStorage.setItem('ghm_products', JSON.stringify(dedup));
+              }}
+              categories={categories}
+              onUpdateCategories={(cats) => {
+                const dedup = deduplicateCategories(cats);
+                setCategories(dedup);
+                safeStorage.setItem('ghm_categories', JSON.stringify(dedup));
+              }}
+              orders={orders}
+              onUpdateOrders={(ords) => {
+                setOrders(ords);
+                safeStorage.setItem('ghm_orders', JSON.stringify(ords));
+              }}
+              incompleteOrders={incompleteOrders}
+              onUpdateIncompleteOrders={(incs) => {
+                setIncompleteOrders(incs);
+                safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(incs));
+              }}
+              subscribers={subscribers}
+              banners={banners}
+              onUpdateBanners={(bns) => {
+                setBanners(bns);
+                safeStorage.setItem('ghm_banners', JSON.stringify(bns));
+              }}
+              coupons={coupons}
+              onUpdateCoupons={(cps) => {
+                setCoupons(cps);
+                safeStorage.setItem('ghm_coupons', JSON.stringify(cps));
+              }}
+              currentCurrency={currentCurrency}
+              onAdjustStock={adjustProductStock}
+            />
+          </AdminErrorBoundary>
         )}
 
         {typeof currentView === 'object' && currentView.type === 'product' && (
@@ -1245,6 +1325,9 @@ export default function App() {
                 return next;
               });
               showToast(`Order #${id} confirmed successfully!`);
+
+              // Broadcast new order to any open Admin Panel tabs in real time
+              broadcastNewOrder(newOrd);
 
               // Automatically deduct stock for bought items
               adjustProductStock(orderDetails.items, 'deduct');
@@ -1472,15 +1555,19 @@ export default function App() {
         <Footer
           onNavigateSection={handleNavigateSection}
           onNavigateView={(view) => {
-            setCurrentView(view as any);
+            if (view === 'admin') {
+              navigateView('admin');
+            } else {
+              navigateView(view as any);
+            }
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenTrackOrder={() => {
-            setCurrentView('track-order');
+            navigateView('track-order');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenHelp={() => {
-            setCurrentView('help-center');
+            navigateView('help-center');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
           onOpenAdmin={() => {

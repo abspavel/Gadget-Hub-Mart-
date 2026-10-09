@@ -18,6 +18,9 @@ import {
   getSavedCustomDomain, setSavedCustomDomain, getEffectiveShortDomain,
   normalizeDomain, buildShortUrl, buildCanonicalProductUrl, DEFAULT_SHORT_DOMAIN
 } from '../utils/shortLinks';
+import { 
+  getDeletedOrderIds, markOrderAsDeleted, subscribeToOrderSync, playOrderNotificationSound, broadcastNewOrder 
+} from '../utils/orderSync';
 
 interface AdminPageProps {
   onBack: () => void;
@@ -186,6 +189,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     const nextOrders = [newOrd, ...orders];
     onUpdateOrders(nextOrders);
     safeStorage.setItem('ghm_orders', JSON.stringify(nextOrders));
+    broadcastNewOrder(newOrd);
 
     // Remove from incomplete orders
     const nextIncs = incompleteOrders.filter(x => x.id !== inc.id && x.phone !== inc.phone);
@@ -267,34 +271,45 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         .order('created_at', { ascending: false });
 
       if (dbOrders && Array.isArray(dbOrders)) {
-        const loaded: Order[] = dbOrders.map((o: any) => ({
-          id: o.id,
-          customerName: o.customer_name || o.customerName || 'Customer',
-          phone: o.phone || '',
-          email: o.email || '',
-          address: o.address || '',
-          thana: o.thana || '',
-          city: o.city || '',
-          deliveryZone: o.delivery_zone || o.deliveryZone || 'Standard Delivery',
-          paymentMethod: o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি',
-          items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
-          total: Number(o.total || 0),
-          status: o.status || 'Pending',
-          date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
-          steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
-          steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
-          steadfastStatus: o.steadfast_status || o.steadfastStatus
-        }));
+        const deletedIds = getDeletedOrderIds();
+        const loaded: Order[] = dbOrders
+          .map((o: any) => {
+            let parsedItems: any[] = [];
+            try {
+              if (Array.isArray(o.items)) parsedItems = o.items;
+              else if (typeof o.items === 'string') parsedItems = JSON.parse(o.items);
+            } catch (e) {}
+
+            return {
+              id: String(o.id || ''),
+              customerName: String(o.customer_name || o.customerName || 'Customer'),
+              phone: String(o.phone || ''),
+              email: String(o.email || ''),
+              address: String(o.address || ''),
+              thana: String(o.thana || ''),
+              city: String(o.city || ''),
+              deliveryZone: String(o.delivery_zone || o.deliveryZone || 'Standard Delivery'),
+              paymentMethod: String(o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি'),
+              items: parsedItems,
+              total: Number(o.total || 0),
+              status: (o.status || 'Pending') as Order['status'],
+              date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : (o.date || new Date().toLocaleDateString('en-CA')),
+              steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
+              steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
+              steadfastStatus: o.steadfast_status || o.steadfastStatus
+            };
+          })
+          .filter(ord => ord.id && !deletedIds.has(ord.id));
 
         // Merge loaded orders with any local orders (keyed by order ID)
         const orderMap = new Map<string, Order>();
         loaded.forEach(ord => orderMap.set(ord.id, ord));
         orders.forEach(ord => {
-          if (!orderMap.has(ord.id)) {
+          if (ord && ord.id && !deletedIds.has(ord.id) && !orderMap.has(ord.id)) {
             orderMap.set(ord.id, ord);
           }
         });
-        const finalOrders = Array.from(orderMap.values());
+        const finalOrders = Array.from(orderMap.values()).filter(o => !deletedIds.has(o.id));
         onUpdateOrders(finalOrders);
         safeStorage.setItem('ghm_orders', JSON.stringify(finalOrders));
         if (isManual) {
@@ -315,12 +330,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     }
   }, []);
 
+  // Real-time synchronization across browser tabs (New order alert chime & instant appearance)
+  useEffect(() => {
+    const unsubscribe = subscribeToOrderSync(
+      (newOrder) => {
+        const deletedIds = getDeletedOrderIds();
+        if (newOrder && newOrder.id && !deletedIds.has(newOrder.id)) {
+          const updated = [newOrder, ...orders.filter(o => o.id !== newOrder.id)];
+          onUpdateOrders(updated);
+          safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+          playOrderNotificationSound();
+          showToast(`🔔 নতুন অর্ডার এসেছে! #${newOrder.id} - ৳${newOrder.total}`);
+        }
+      },
+      (deletedId) => {
+        const updated = orders.filter(o => o.id !== deletedId);
+        onUpdateOrders(updated);
+        safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+      }
+    );
+    return () => unsubscribe();
+  }, [orders, onUpdateOrders]);
+
   // Automatically fetch live orders on initial mount and when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchLiveOrdersFromDb(false);
     }
   }, [isAuthenticated]);
+
+  // Background polling every 12 seconds so orders placed on customer devices appear automatically
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      fetchLiveOrdersFromDb(false);
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchLiveOrdersFromDb]);
 
   // Search & Filters
   const [productSearch, setProductSearch] = useState('');
@@ -492,12 +538,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
+      if (!o) return false;
       const matchStatus = orderStatusFilter === 'All' || o.status === orderStatusFilter;
-      const matchSearch = orderSearch === '' ||
-        o.id.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.phone.includes(orderSearch);
-      return matchStatus && matchSearch;
+      const search = (orderSearch || '').toLowerCase().trim();
+      if (!search) return matchStatus;
+      const idMatch = (o.id || '').toLowerCase().includes(search);
+      const nameMatch = (o.customerName || '').toLowerCase().includes(search);
+      const phoneMatch = String(o.phone || '').includes(search);
+      return matchStatus && (idMatch || nameMatch || phoneMatch);
     });
   }, [orders, orderStatusFilter, orderSearch]);
 
@@ -652,11 +700,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         console.error('Supabase delete error:', e);
       }
     } else if (type === 'order') {
+      markOrderAsDeleted(id);
       const existingOrder = orders.find((o) => o.id === id);
       const updated = orders.filter((o) => o.id !== id);
       onUpdateOrders(updated);
       safeStorage.setItem('ghm_orders', JSON.stringify(updated));
-      showToast(`অর্ডার #${id} ডিলিট করা হয়েছে`);
+      showToast(`অর্ডার #${id} স্থায়ীভাবে মুছে ফেলা হয়েছে`);
       if (viewingOrder?.id === id) setViewingOrder(null);
 
       // If deleted order was active, automatically restore stock to products
