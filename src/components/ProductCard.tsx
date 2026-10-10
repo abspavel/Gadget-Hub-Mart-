@@ -151,11 +151,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Both Buy & Cart Buttons for EVERY product */}
-      <div className="grid grid-cols-2 gap-1.5 pt-3 mt-2 border-t border-gray-100">
+      <div className="grid grid-cols-2 gap-1.5 pt-2.5 mt-2 border-t border-gray-100">
         <button
           onClick={handleCartClick}
           disabled={isOutOfStock}
-          className={`w-full text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all ${
+          className={`w-full text-[11px] sm:text-xs font-bold py-2.5 sm:py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all select-none ${
             isOutOfStock
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
               : addedAnimation
@@ -182,7 +182,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <button
           onClick={handleBuyClick}
           disabled={isOutOfStock}
-          className={`w-full text-[10px] sm:text-xs font-bold py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs ${
+          className={`w-full text-[11px] sm:text-xs font-bold py-2.5 sm:py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs select-none ${
             isOutOfStock
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
               : 'bg-[#0a192f] hover:bg-blue-600 text-white cursor-pointer active:scale-95'

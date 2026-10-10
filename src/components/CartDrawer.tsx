@@ -113,22 +113,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                       {/* Quantity & Item Total */}
                       <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center bg-white border border-gray-200 rounded-lg">
+                        <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
                           <button
                             onClick={() => item.quantity <= 1 ? onRemoveItem(item.product.id) : onUpdateQuantity(item.product.id, item.quantity - 1)}
-                            className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-red-600 rounded-l-lg cursor-pointer"
+                            className="w-8 h-8 flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-red-600 cursor-pointer active:bg-gray-200"
                             title={item.quantity <= 1 ? "পণ্যটি ডিলিট করুন" : "পরিমাণ কমান"}
                           >
-                            <Minus className="w-2.5 h-2.5" />
+                            <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="w-6 text-center text-xs font-bold text-gray-900 tabular-nums">
+                          <span className="w-8 text-center text-xs font-bold text-gray-900 tabular-nums">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
-                            className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-r-lg cursor-pointer"
+                            className="w-8 h-8 flex items-center justify-center text-gray-700 hover:bg-gray-100 cursor-pointer active:bg-gray-200"
                           >
-                            <Plus className="w-2.5 h-2.5" />
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
 
@@ -145,7 +145,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* Footer */}
           {items.length > 0 && (
-            <div className="p-4 sm:p-5 border-t border-gray-100 bg-white space-y-3 shrink-0">
+            <div className="p-4 sm:p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white space-y-3 shrink-0">
               <div className="space-y-1.5 text-xs text-gray-600">
                 <div className="flex justify-between">
                   <span>সাবটোটাল</span>
@@ -167,7 +167,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   onClose();
                   onProceedToCheckout();
                 }}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-98"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-98 select-none"
               >
                 <span>চেকআউট করুন</span>
                 <ArrowRight className="w-4 h-4" />

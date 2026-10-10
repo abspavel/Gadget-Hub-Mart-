@@ -61,7 +61,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Marcus Vance"
-                className="w-full text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
+                className="w-full text-base sm:text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
               />
             </div>
           )}
@@ -74,7 +74,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="alex@example.com"
-              className="w-full text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
+              className="w-full text-base sm:text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
             />
           </div>
 
@@ -86,7 +86,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
+              className="w-full text-base sm:text-xs p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:outline-none"
             />
           </div>
 

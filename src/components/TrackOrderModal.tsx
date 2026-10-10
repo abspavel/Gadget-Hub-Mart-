@@ -46,14 +46,14 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({
             type="text"
             value={orderQuery}
             onChange={(e) => setOrderQuery(e.target.value)}
-            placeholder="Enter Order ID (e.g. GHM-78421)"
-            className="flex-1 text-xs sm:text-sm px-4 py-2.5 rounded-full border border-gray-200 focus:border-blue-500 focus:outline-none uppercase"
+            placeholder="অর্ডার আইডি লিখুন (e.g. GHM-78421)"
+            className="flex-1 text-base sm:text-sm px-4 py-3 rounded-full border border-gray-200 focus:border-blue-500 focus:outline-none uppercase font-mono"
           />
           <button
             onClick={() => setIsSearched(true)}
-            className="bg-gray-950 hover:bg-blue-600 text-white font-semibold text-xs px-5 py-2.5 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="bg-gray-950 hover:bg-blue-600 text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 active:scale-95"
           >
-            <Search className="w-3.5 h-3.5" />
+            <Search className="w-4 h-4" />
             <span>Track</span>
           </button>
         </div>

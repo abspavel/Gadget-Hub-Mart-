@@ -351,7 +351,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             <div className="space-y-3">
               {/* Name */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   আপনার নাম <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -360,13 +360,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="যেমন: তানভীর আহমেদ"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
+                  className="w-full text-base sm:text-xs px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
                 />
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   মোবাইল নম্বর <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -375,13 +375,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="যেমন: 017XXXXXXXX"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all font-mono"
+                  className="w-full text-base sm:text-xs px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all font-mono"
                 />
               </div>
 
               {/* Full Address */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   সম্পূর্ণ ঠিকানা (বাসা/রোড/এলাকা) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -390,14 +390,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="যেমন: বাসা ১২, রোড ৪, ব্লক সি"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
+                  className="w-full text-base sm:text-xs px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
                 />
               </div>
 
               {/* District & Thana in 2 Columns */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     জেলা / শহর <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -406,12 +406,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="ঢাকা / চট্টগ্রাম"
-                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
+                    className="w-full text-base sm:text-xs px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     থানা / উপজেলা <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -420,7 +420,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     value={thana}
                     onChange={(e) => setThana(e.target.value)}
                     placeholder="মিরপুর / উত্তরা"
-                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
+                    className="w-full text-base sm:text-xs px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white focus:border-blue-600 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -559,12 +559,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   value={couponInput}
                   onChange={(e) => setCouponInput(e.target.value)}
                   placeholder="কুপন কোড (যদি থাকে)"
-                  className="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 uppercase tracking-wider outline-none focus:bg-white focus:border-blue-600"
+                  className="flex-1 text-base sm:text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 uppercase tracking-wider outline-none focus:bg-white focus:border-blue-600"
                 />
                 <button
                   type="button"
                   onClick={handleApplyCoupon}
-                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95"
                 >
                   প্রয়োগ
                 </button>

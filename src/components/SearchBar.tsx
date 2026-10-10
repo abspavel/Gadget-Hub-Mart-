@@ -54,11 +54,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <div className="w-full bg-[#F1F6FF] border-b border-blue-100/60 py-1 sm:py-1.5 px-3 sm:px-4 transition-colors">
       <div ref={containerRef} className="w-full max-w-[720px] mx-auto relative">
-        {/* Slim Pill-shaped search bar container (halved height ~34px-36px) */}
-        <div className="relative flex items-center w-full h-[34px] sm:h-[36px] bg-white rounded-full border-[1.5px] border-[#2563EB] shadow-[0_1px_6px_rgba(37,99,235,0.12)] transition-all duration-200 focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#2563EB]/20 focus-within:shadow-[0_2px_10px_rgba(37,99,235,0.18)]">
+        {/* Slim Pill-shaped search bar container */}
+        <div className="relative flex items-center w-full h-[38px] sm:h-[36px] bg-white rounded-full border-[1.5px] border-[#2563EB] shadow-[0_1px_6px_rgba(37,99,235,0.12)] transition-all duration-200 focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#2563EB]/20 focus-within:shadow-[0_2px_10px_rgba(37,99,235,0.18)]">
           {/* Subtle inside left search icon */}
           <div className="pl-3 sm:pl-3.5 pr-1 flex items-center pointer-events-none text-gray-400">
-            <Search className="w-3.5 h-3.5" />
+            <Search className="w-4 h-4 text-slate-400" />
           </div>
 
           {/* Text Input Field */}
@@ -73,8 +73,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             onFocus={() => {
               if (query.trim()) setSuggestionsOpen(true);
             }}
-            placeholder="Search for products..."
-            className="w-full h-full bg-transparent text-gray-900 text-xs sm:text-[13px] pl-1 pr-22 sm:pr-24 rounded-full focus:outline-none placeholder:text-gray-400 placeholder:italic font-normal"
+            placeholder="পণ্য সার্চ করুন (Search products)..."
+            className="w-full h-full bg-transparent text-gray-900 text-base sm:text-[13px] pl-1 pr-22 sm:pr-24 rounded-full focus:outline-none placeholder:text-gray-400 font-normal"
           />
 
           {/* Slim Embedded Right Search Button */}
@@ -82,7 +82,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             type="button"
             onClick={handleSearch}
             aria-label="Search"
-            className="absolute right-0.5 sm:right-1 top-0.5 bottom-0.5 px-3 sm:px-3.5 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white flex items-center justify-center gap-1 font-bold text-[10px] sm:text-[11px] tracking-wider uppercase transition-all duration-150 cursor-pointer shadow-2xs active:scale-97 select-none"
+            className="absolute right-0.5 sm:right-1 top-0.5 bottom-0.5 px-3 sm:px-3.5 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white flex items-center justify-center gap-1 font-bold text-[11px] tracking-wider uppercase transition-all duration-150 cursor-pointer shadow-2xs active:scale-97 select-none"
           >
             <span>SEARCH</span>
             <Search className="w-3 h-3 stroke-[2.5]" />

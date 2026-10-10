@@ -955,6 +955,8 @@ export default function App() {
     }
   };
 
+  const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
     <div className="min-h-screen bg-white text-gray-900 flex flex-col selection:bg-blue-600 selection:text-white">
       {/* Global ScrollToTop Component */}
@@ -963,7 +965,7 @@ export default function App() {
       {/* 1. Navbar (Hidden on Admin page) */}
       {currentView !== 'admin' && (
         <Navbar
-          cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+          cartCount={totalCartCount}
           onOpenCart={() => setCartOpen(true)}
           onOpenAuth={() => {
             setCurrentView('profile');
