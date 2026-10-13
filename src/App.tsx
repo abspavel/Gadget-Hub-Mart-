@@ -105,61 +105,7 @@ export type ViewState =
   | 'checkout'
   | 'profile';
 
-const INITIAL_DEMO_ORDERS: any[] = [
-  {
-    id: 'GHM-892134',
-    customerName: 'Md. Tanvir Ahmed',
-    phone: '01711223344',
-    email: 'tanvir@gmail.com',
-    address: 'বাসা ১৮, রোড ৪, সেক্টর ৭, উত্তরা, ঢাকা',
-    city: 'ঢাকা',
-    thana: 'উত্তরা',
-    deliveryZone: 'ঢাকার ভিতরে (৳৮০)',
-    paymentMethod: 'ক্যাশ অন ডেলিভারি',
-    items: [
-      { productName: 'Baseus 65W GaN5 Pro Fast Charger', quantity: 1, price: 1850 }
-    ],
-    total: 1930,
-    status: 'Pending',
-    date: '2026-10-01'
-  },
-  {
-    id: 'GHM-562941',
-    customerName: 'Rahim Uddin',
-    phone: '01899887766',
-    email: 'rahim@yahoo.com',
-    address: 'জিইসি মোড়, নাসিরাবাদ, চট্টগ্রাম',
-    city: 'চট্টগ্রাম',
-    thana: 'খুলশী',
-    deliveryZone: 'ঢাকার বাইরে (৳১২০)',
-    paymentMethod: 'ক্যাশ অন ডেলিভারি',
-    items: [
-      { productName: 'Anker PowerLine III USB-C Cable', quantity: 2, price: 650 }
-    ],
-    total: 1420,
-    status: 'Processing',
-    date: '2026-09-30'
-  },
-  {
-    id: 'GHM-341908',
-    customerName: 'Farhana Islam',
-    phone: '01922334455',
-    email: 'farhana@gmail.com',
-    address: 'বাড়ি ৫, রোড ১১, ধানমন্ডি, ঢাকা',
-    city: 'ঢাকা',
-    thana: 'ধানমন্ডি',
-    deliveryZone: 'ঢাকার ভিতরে (৳৮০)',
-    paymentMethod: 'ক্যাশ অন ডেলিভারি',
-    items: [
-      { productName: 'Sony WH-1000XM5 Wireless Headphones', quantity: 1, price: 34500 }
-    ],
-    total: 34580,
-    status: 'Delivered',
-    date: '2026-09-28',
-    steadfastTrackingCode: 'SF89214710',
-    steadfastConsignmentId: 'CID-GHM-341908'
-  }
-];
+const INITIAL_DEMO_ORDERS: any[] = [];
 
 // Safe deduplication helpers to ensure keys are always 100% unique
 const deduplicateCategories = (cats: CategoryItem[]): CategoryItem[] => {
@@ -396,7 +342,7 @@ export default function App() {
         }
       }
     } catch (e) {}
-    return INITIAL_DEMO_ORDERS.filter(o => o && o.id && !deletedIds.has(o.id));
+    return [];
   });
 
   const [incompleteOrders, setIncompleteOrders] = useState<any[]>(() => {
@@ -553,15 +499,15 @@ export default function App() {
             }
           })(),
 
-          // 4. Orders Sync from Supabase (Never lose customer orders, permanent delete protection)
+          // 4. Orders Sync from Supabase - Single Source of Truth
           (async () => {
             try {
-              const { data: dbOrders } = await supabase
+              const { data: dbOrders, error: ordersErr } = await supabase
                 .from('orders')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-              if (dbOrders && Array.isArray(dbOrders) && dbOrders.length > 0) {
+              if (!ordersErr && dbOrders && Array.isArray(dbOrders)) {
                 const deletedIds = getDeletedOrderIds();
                 const loadedOrders: any[] = dbOrders
                   .map((o: any) => {
@@ -592,33 +538,24 @@ export default function App() {
                   })
                   .filter((o: any) => o.id && !deletedIds.has(o.id));
 
-                setOrders(prev => {
-                  const orderMap = new Map<string, any>();
-                  loadedOrders.forEach(ord => orderMap.set(ord.id, ord));
-                  prev.forEach(ord => {
-                    if (ord && ord.id && !deletedIds.has(ord.id) && !orderMap.has(ord.id)) {
-                      orderMap.set(ord.id, ord);
-                    }
-                  });
-                  const merged = Array.from(orderMap.values()).filter((o: any) => !deletedIds.has(o.id));
-                  safeStorage.setItem('ghm_orders', JSON.stringify(merged));
-                  return merged;
-                });
+                // Database is the single source of truth. Authoritative sync overrides local cache.
+                setOrders(loadedOrders);
+                safeStorage.setItem('ghm_orders', JSON.stringify(loadedOrders));
               }
             } catch (e) {
               console.log('Orders initial sync note:', e);
             }
           })(),
 
-          // 5. Incomplete Orders Sync from Supabase
+          // 5. Incomplete Orders Sync from Supabase - Single Source of Truth
           (async () => {
             try {
-              const { data: dbIncOrders } = await supabase
+              const { data: dbIncOrders, error: incErr } = await supabase
                 .from('incomplete_orders')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-              if (dbIncOrders && Array.isArray(dbIncOrders) && dbIncOrders.length > 0) {
+              if (!incErr && dbIncOrders && Array.isArray(dbIncOrders)) {
                 const mappedInc = dbIncOrders.map((inc: any) => ({
                   id: String(inc.id || ''),
                   phone: String(inc.phone || ''),
@@ -629,16 +566,9 @@ export default function App() {
                   date: inc.created_at ? new Date(inc.created_at).toLocaleDateString('en-CA') : (inc.date || new Date().toLocaleTimeString())
                 }));
 
-                setIncompleteOrders(prev => {
-                  const map = new Map<string, any>();
-                  mappedInc.forEach(i => map.set(i.phone, i));
-                  prev.forEach(i => {
-                    if (i && i.phone && !map.has(i.phone)) map.set(i.phone, i);
-                  });
-                  const merged = Array.from(map.values());
-                  safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(merged));
-                  return merged;
-                });
+                // Database is the single source of truth. Authoritative sync overrides local cache.
+                setIncompleteOrders(mappedInc);
+                safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(mappedInc));
               }
             } catch (incErr) {
               console.log('Incomplete orders initial sync note:', incErr);

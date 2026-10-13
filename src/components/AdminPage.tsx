@@ -19,7 +19,7 @@ import {
   normalizeDomain, buildShortUrl, buildCanonicalProductUrl, DEFAULT_SHORT_DOMAIN
 } from '../utils/shortLinks';
 import { 
-  getDeletedOrderIds, markOrderAsDeleted, subscribeToOrderSync, playOrderNotificationSound, broadcastNewOrder 
+  getDeletedOrderIds, markOrderAsDeleted, subscribeToOrderSync, playOrderNotificationSound, broadcastNewOrder, broadcastDeletedOrder 
 } from '../utils/orderSync';
 
 interface AdminPageProps {
@@ -220,16 +220,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   const handleDeleteIncompleteOrder = (id: string, phone: string) => {
-    const nextIncs = incompleteOrders.filter(x => x.id !== id && x.phone !== phone);
-    if (onUpdateIncompleteOrders) {
-      onUpdateIncompleteOrders(nextIncs);
-    }
-    safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(nextIncs));
-    showToast('ইনকমপ্লিট অর্ডারটি তালিকা থেকে মুছে ফেলা হয়েছে');
-
-    Promise.resolve(
-      supabase.from('incomplete_orders').delete().or(`id.eq.${id},phone.eq.${phone}`)
-    ).catch(() => {});
+    setDeleteTarget({
+      type: 'incomplete_order',
+      id: id || phone,
+      name: `ইনকমপ্লিট অর্ডার (${phone || id})`,
+      details: 'এই পরিত্যক্ত চেকআউট রেকর্ডটি ডাটাবেজ থেকে স্থায়ীভাবে মুছে যাবে।'
+    });
   };
 
   // Short Links State & Custom Domain
@@ -259,16 +255,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     showToast(`ডিফল্ট ডোমেইন সেট করা হয়েছে: ${DEFAULT_SHORT_DOMAIN}`);
   };
 
-  // Live Orders Sync State & Handler
+  // Live Orders Sync State & Handler - Database is the Single Source of Truth
   const [isSyncingOrders, setIsSyncingOrders] = useState(false);
 
   const fetchLiveOrdersFromDb = useCallback(async (isManual = false) => {
     setIsSyncingOrders(true);
     try {
-      const { data: dbOrders } = await supabase
+      const { data: dbOrders, error: fetchErr } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
+
+      if (fetchErr) {
+        if (isManual) showToast(`সিঙ্ক ব্যর্থ: ${fetchErr.message}`);
+        return;
+      }
 
       if (dbOrders && Array.isArray(dbOrders)) {
         const deletedIds = getDeletedOrderIds();
@@ -301,19 +302,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           })
           .filter(ord => ord.id && !deletedIds.has(ord.id));
 
-        // Merge loaded orders with any local orders (keyed by order ID)
-        const orderMap = new Map<string, Order>();
-        loaded.forEach(ord => orderMap.set(ord.id, ord));
-        orders.forEach(ord => {
-          if (ord && ord.id && !deletedIds.has(ord.id) && !orderMap.has(ord.id)) {
-            orderMap.set(ord.id, ord);
-          }
-        });
-        const finalOrders = Array.from(orderMap.values()).filter(o => !deletedIds.has(o.id));
-        onUpdateOrders(finalOrders);
-        safeStorage.setItem('ghm_orders', JSON.stringify(finalOrders));
+        // The database is the authoritative single source of truth.
+        onUpdateOrders(loaded);
+        safeStorage.setItem('ghm_orders', JSON.stringify(loaded));
         if (isManual) {
-          showToast(`লাইভ অর্ডার সিঙ্ক সম্পন্ন! মোট ${finalOrders.length} টি অর্ডার আপডেট হয়েছে`);
+          showToast(`লাইভ অর্ডার সিঙ্ক সম্পন্ন! মোট ${loaded.length} টি অর্ডার ডাটাবেজে রয়েছে`);
         }
       }
     } catch (err) {
@@ -321,7 +314,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     } finally {
       setIsSyncingOrders(false);
     }
-  }, [orders, onUpdateOrders]);
+  }, [onUpdateOrders]);
 
   // Keep browser URL strictly on /admin while AdminPage is open
   useEffect(() => {
@@ -330,27 +323,101 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     }
   }, []);
 
-  // Real-time synchronization across browser tabs (New order alert chime & instant appearance)
+  // Real-time synchronization across browser tabs AND Supabase Realtime (Instant zero-latency live alert)
   useEffect(() => {
-    const unsubscribe = subscribeToOrderSync(
+    if (!isAuthenticated) return;
+
+    // 1. Cross-tab BroadcastChannel listener (Instant 0ms sync within same browser)
+    const unsubscribeBroadcast = subscribeToOrderSync(
       (newOrder) => {
         const deletedIds = getDeletedOrderIds();
         if (newOrder && newOrder.id && !deletedIds.has(newOrder.id)) {
-          const updated = [newOrder, ...orders.filter(o => o.id !== newOrder.id)];
-          onUpdateOrders(updated);
-          safeStorage.setItem('ghm_orders', JSON.stringify(updated));
-          playOrderNotificationSound();
-          showToast(`🔔 নতুন অর্ডার এসেছে! #${newOrder.id} - ৳${newOrder.total}`);
+          if (!orders.some(o => o.id === newOrder.id)) {
+            const updated = [newOrder, ...orders];
+            onUpdateOrders(updated);
+            safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+            playOrderNotificationSound();
+            showToast(`🔔 নতুন অর্ডার এসেছে! #${newOrder.id} - ৳${newOrder.total}`);
+          }
         }
       },
       (deletedId) => {
-        const updated = orders.filter(o => o.id !== deletedId);
-        onUpdateOrders(updated);
-        safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+        if (deletedId === 'ALL') {
+          onUpdateOrders([]);
+          safeStorage.setItem('ghm_orders', '[]');
+        } else {
+          const updated = orders.filter(o => o.id !== deletedId);
+          onUpdateOrders(updated);
+          safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+        }
       }
     );
-    return () => unsubscribe();
-  }, [orders, onUpdateOrders]);
+
+    // 2. Supabase Realtime subscription for cross-device live notifications
+    const channel = supabase
+      .channel('admin_live_orders_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload) => {
+          const o: any = payload.new;
+          if (!o || !o.id) return;
+          const deletedIds = getDeletedOrderIds();
+          if (deletedIds.has(String(o.id))) return;
+
+          let parsedItems: any[] = [];
+          try {
+            if (Array.isArray(o.items)) parsedItems = o.items;
+            else if (typeof o.items === 'string') parsedItems = JSON.parse(o.items);
+          } catch (e) {}
+
+          const newOrder: Order = {
+            id: String(o.id || ''),
+            customerName: String(o.customer_name || o.customerName || 'Customer'),
+            phone: String(o.phone || ''),
+            email: String(o.email || ''),
+            address: String(o.address || ''),
+            thana: String(o.thana || ''),
+            city: String(o.city || ''),
+            deliveryZone: String(o.delivery_zone || o.deliveryZone || 'Standard Delivery'),
+            paymentMethod: String(o.payment_method || o.paymentMethod || 'ক্যাশ অন ডেলিভারি'),
+            items: parsedItems,
+            total: Number(o.total || 0),
+            status: (o.status || 'Pending') as Order['status'],
+            date: o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA'),
+            steadfastTrackingCode: o.steadfast_tracking_code || o.steadfastTrackingCode,
+            steadfastConsignmentId: o.steadfast_consignment_id || o.steadfastConsignmentId,
+            steadfastStatus: o.steadfast_status || o.steadfastStatus
+          };
+
+          if (!orders.some(ord => ord.id === newOrder.id)) {
+            const updated = [newOrder, ...orders];
+            onUpdateOrders(updated);
+            safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+            playOrderNotificationSound();
+            showToast(`🔔 নতুন অর্ডার এসেছে! #${newOrder.id} - ৳${newOrder.total}`);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'orders' },
+        (payload) => {
+          const deletedId = String(payload.old?.id || '');
+          if (deletedId) {
+            const updated = orders.filter(o => o.id !== deletedId);
+            onUpdateOrders(updated);
+            safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      unsubscribeBroadcast();
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, orders, onUpdateOrders]);
 
   // Automatically fetch live orders on initial mount and when authenticated
   useEffect(() => {
@@ -359,7 +426,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     }
   }, [isAuthenticated]);
 
-  // Background polling every 12 seconds so orders placed on customer devices appear automatically
+  // Background polling fallback every 12 seconds so orders placed on any device appear reliably
   useEffect(() => {
     if (!isAuthenticated) return;
     const interval = setInterval(() => {
@@ -658,81 +725,148 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   // Delete Target for In-App Confirmation Modal (Replaces window.confirm which is blocked in iframes)
+  // Delete Target for In-App Confirmation Modal (Replaces window.confirm which is blocked in iframes)
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'product' | 'category' | 'banner' | 'order' | 'coupon';
+    type: 'product' | 'category' | 'banner' | 'order' | 'coupon' | 'incomplete_order' | 'all_orders' | 'all_incomplete';
     id: string;
     name: string;
+    details?: string;
   } | null>(null);
+  const [isDeletingTarget, setIsDeletingTarget] = useState(false);
 
   const executeDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || isDeletingTarget) return;
     const { type, id, name } = deleteTarget;
-    setDeleteTarget(null);
+    setIsDeletingTarget(true);
 
-    if (type === 'product') {
-      const nextProducts = products.filter((p) => p.id !== id);
-      onUpdateProducts(nextProducts);
-      safeStorage.setItem('ghm_products', JSON.stringify(nextProducts));
-      showToast(`প্রোডাক্ট "${name}" মুছে ফেলা হয়েছে`);
-      try {
-        await supabase.from('products').delete().eq('id', id);
-      } catch (e) {
-        console.error('Supabase delete error:', e);
-      }
-    } else if (type === 'category') {
-      const nextCats = categories.filter((c) => c.id !== id);
-      onUpdateCategories(nextCats);
-      safeStorage.setItem('ghm_categories', JSON.stringify(nextCats));
-      showToast(`ক্যাটাগরি "${name}" মুছে ফেলা হয়েছে`);
-      try {
-        await supabase.from('categories').delete().eq('id', id);
-      } catch (e) {
-        console.error('Supabase delete error:', e);
-      }
-    } else if (type === 'banner') {
-      const nextBanners = banners.filter((b) => b.id !== id);
-      onUpdateBanners(nextBanners);
-      safeStorage.setItem('ghm_banners', JSON.stringify(nextBanners));
-      showToast(`ব্যানার "${name}" মুছে ফেলা হয়েছে`);
-      try {
-        await supabase.from('banners').delete().eq('id', id);
-      } catch (e) {
-        console.error('Supabase delete error:', e);
-      }
-    } else if (type === 'order') {
-      markOrderAsDeleted(id);
-      const existingOrder = orders.find((o) => o.id === id);
-      const updated = orders.filter((o) => o.id !== id);
-      onUpdateOrders(updated);
-      safeStorage.setItem('ghm_orders', JSON.stringify(updated));
-      showToast(`অর্ডার #${id} স্থায়ীভাবে মুছে ফেলা হয়েছে`);
-      if (viewingOrder?.id === id) setViewingOrder(null);
+    try {
+      if (type === 'order') {
+        const existingOrder = orders.find((o) => o.id === id);
 
-      // If deleted order was active, automatically restore stock to products
-      if (existingOrder && existingOrder.status !== 'Cancelled') {
-        handleAdjustStock(existingOrder.items, 'restore');
-      }
+        // 1. Permanently delete from Supabase Database FIRST (Single Source of Truth)
+        const { error: delError } = await supabase.from('orders').delete().eq('id', id);
+        if (delError) {
+          showToast(`অর্ডার মুছতে ব্যর্থ হয়েছে: ${delError.message}`);
+          return;
+        }
 
-      try {
-        await supabase.from('orders').delete().eq('id', id);
-      } catch (e) {
-        console.error(e);
+        // 2. Mark in deleted order sync
+        markOrderAsDeleted(id);
+
+        // 3. Update UI state and local storage only after database confirmed deletion
+        const updated = orders.filter((o) => o.id !== id);
+        onUpdateOrders(updated);
+        safeStorage.setItem('ghm_orders', JSON.stringify(updated));
+        broadcastDeletedOrder(id);
+
+        if (viewingOrder?.id === id) setViewingOrder(null);
+
+        // 4. If deleted order was active, restore stock
+        if (existingOrder && existingOrder.status !== 'Cancelled' && onAdjustStock) {
+          handleAdjustStock(existingOrder.items, 'restore');
+        }
+
+        showToast(`অর্ডার #${id} ডাটাবেস থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে`);
+      } else if (type === 'all_orders') {
+        // Batch delete all orders from database
+        const { error: delAllError } = await supabase.from('orders').delete().neq('id', '___none___');
+        if (delAllError) {
+          showToast(`সব অর্ডার মুছতে ব্যর্থ হয়েছে: ${delAllError.message}`);
+          return;
+        }
+
+        // Mark all current order IDs as deleted
+        orders.forEach(o => markOrderAsDeleted(o.id));
+
+        onUpdateOrders([]);
+        safeStorage.setItem('ghm_orders', '[]');
+        broadcastDeletedOrder('ALL');
+        if (viewingOrder) setViewingOrder(null);
+        showToast('ডাটাবেজ থেকে সমস্ত অর্ডার সফলভাবে মুছে ফেলা হয়েছে');
+      } else if (type === 'incomplete_order') {
+        // Delete incomplete order from database
+        const { error: incErr } = await supabase.from('incomplete_orders').delete().or(`id.eq.${id},phone.eq.${id}`);
+        if (incErr) {
+          showToast(`ইনকমপ্লিট অর্ডার মুছতে সমস্যা হয়েছে: ${incErr.message}`);
+          return;
+        }
+
+        const nextIncs = incompleteOrders.filter(x => x.id !== id && x.phone !== id);
+        if (onUpdateIncompleteOrders) {
+          onUpdateIncompleteOrders(nextIncs);
+        }
+        safeStorage.setItem('ghm_incomplete_orders', JSON.stringify(nextIncs));
+        showToast('ইনকমপ্লিট অর্ডারটি ডাটাবেস থেকে মুছে ফেলা হয়েছে');
+      } else if (type === 'all_incomplete') {
+        // Batch delete all incomplete orders from database
+        const { error: allIncErr } = await supabase.from('incomplete_orders').delete().neq('id', '___none___');
+        if (allIncErr) {
+          showToast(`সব ইনকমপ্লিট অর্ডার মুছতে ব্যর্থ হয়েছে: ${allIncErr.message}`);
+          return;
+        }
+
+        if (onUpdateIncompleteOrders) {
+          onUpdateIncompleteOrders([]);
+        }
+        safeStorage.setItem('ghm_incomplete_orders', '[]');
+        showToast('সমস্ত ইনকমপ্লিট অর্ডার ডাটাবেস থেকে মুছে ফেলা হয়েছে');
+      } else if (type === 'product') {
+        const { error: prodErr } = await supabase.from('products').delete().eq('id', id);
+        if (prodErr) {
+          showToast(`প্রোডাক্ট মুছতে সমস্যা হয়েছে: ${prodErr.message}`);
+          return;
+        }
+        const nextProducts = products.filter((p) => p.id !== id);
+        onUpdateProducts(nextProducts);
+        safeStorage.setItem('ghm_products', JSON.stringify(nextProducts));
+        showToast(`প্রোডাক্ট "${name}" মুছে ফেলা হয়েছে`);
+      } else if (type === 'category') {
+        const { error: catErr } = await supabase.from('categories').delete().eq('id', id);
+        if (catErr) {
+          showToast(`ক্যাটাগরি মুছতে সমস্যা হয়েছে: ${catErr.message}`);
+          return;
+        }
+        const nextCats = categories.filter((c) => c.id !== id);
+        onUpdateCategories(nextCats);
+        safeStorage.setItem('ghm_categories', JSON.stringify(nextCats));
+        showToast(`ক্যাটাগরি "${name}" মুছে ফেলা হয়েছে`);
+      } else if (type === 'banner') {
+        const { error: banErr } = await supabase.from('banners').delete().eq('id', id);
+        if (banErr) {
+          showToast(`ব্যানার মুছতে সমস্যা হয়েছে: ${banErr.message}`);
+          return;
+        }
+        const nextBanners = banners.filter((b) => b.id !== id);
+        onUpdateBanners(nextBanners);
+        safeStorage.setItem('ghm_banners', JSON.stringify(nextBanners));
+        showToast(`ব্যানার "${name}" মুছে ফেলা হয়েছে`);
+      } else if (type === 'coupon') {
+        const { error: cpErr } = await supabase.from('coupons').delete().eq('id', id);
+        if (cpErr) {
+          showToast(`কুপন মুছতে সমস্যা হয়েছে: ${cpErr.message}`);
+          return;
+        }
+        const nextCoupons = coupons.filter((c) => c.id !== id);
+        onUpdateCoupons(nextCoupons);
+        safeStorage.setItem('ghm_coupons', JSON.stringify(nextCoupons));
+        showToast(`কুপন "${name}" মুছে ফেলা হয়েছে`);
       }
-    } else if (type === 'coupon') {
-      const nextCoupons = coupons.filter((c) => c.id !== id);
-      onUpdateCoupons(nextCoupons);
-      safeStorage.setItem('ghm_coupons', JSON.stringify(nextCoupons));
-      showToast(`কুপন "${name}" মুছে ফেলা হয়েছে`);
-      try {
-        await supabase.from('coupons').delete().eq('id', id);
-      } catch (e) {
-        console.error(e);
-      }
+    } catch (e: any) {
+      console.error('Delete error:', e);
+      showToast(`মুছতে ব্যর্থ হয়েছে: ${e?.message || 'Unknown error'}`);
+    } finally {
+      setIsDeletingTarget(false);
+      setDeleteTarget(null);
     }
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    setDeleteTarget({ type: 'order', id: orderId, name: `অর্ডার #${orderId}` });
+    setDeleteTarget({ 
+      type: 'order', 
+      id: orderId, 
+      name: `অর্ডার #${orderId}`,
+      details: 'এই অর্ডারটি ডাটাবেজ থেকে স্থায়ীভাবে সম্পূর্ণ মুছে যাবে এবং আর কখনো ফিরে আসবে না।'
+    });
   };
 
   // ================= PRODUCT ACTIONS =================
@@ -1751,6 +1885,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     <span>{isSyncingOrders ? 'সিঙ্ক হচ্ছে...' : 'লাইভ অর্ডার সিঙ্ক'}</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (orders.length === 0) {
+                        showToast('মুছার মতো কোনো অর্ডার নেই');
+                        return;
+                      }
+                      setDeleteTarget({
+                        type: 'all_orders',
+                        id: 'ALL',
+                        name: `সকল অর্ডার (${orders.length} টি)`,
+                        details: 'ডাটাবেজে থাকা সমস্ত কাস্টমার ও ডেমো অর্ডার স্থায়ীভাবে মুছে যাবে এবং আর কখনো ফিরে আসবে না।'
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600/90 hover:bg-red-600 text-white font-bold text-xs cursor-pointer transition-all shrink-0 active:scale-95 shadow-sm"
+                    title="ডাটাবেজ থেকে সমস্ত অর্ডার একসাথে স্থায়ীভাবে মুছে ফেলুন"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>সব অর্ডার মুছুন</span>
+                  </button>
+
                   <div className="relative w-full sm:w-64">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                     <input
@@ -1910,6 +2065,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-xs">
                       মোট {incompleteOrders.length} টি ড্রপ-অফ রেকর্ড
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (incompleteOrders.length === 0) {
+                          showToast('মুছার মতো কোনো ইনকমপ্লিট অর্ডার নেই');
+                          return;
+                        }
+                        setDeleteTarget({
+                          type: 'all_incomplete',
+                          id: 'ALL_INC',
+                          name: `সকল ইনকমপ্লিট অর্ডার (${incompleteOrders.length} টি)`,
+                          details: 'ডাটাবেজে থাকা সমস্ত পরিত্যক্ত চেকআউট রেকর্ড স্থায়ীভাবে মুছে যাবে এবং আর কখনো ফিরে আসবে না।'
+                        });
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-xs cursor-pointer transition-all shrink-0 active:scale-95 shadow-sm"
+                      title="ডাটাবেজ থেকে সমস্ত ইনকমপ্লিট অর্ডার মুছে ফেলুন"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Incomplete অর্ডার মুছুন</span>
+                    </button>
                   </div>
                 </div>
 
@@ -4034,7 +4209,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: CONFIRM DELETE (PRODUCTS, CATEGORIES, BANNERS, ORDERS, COUPONS) ================= */}
+      {/* ================= MODAL: CONFIRM DELETE (PERMANENT DATABASE DELETE) ================= */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#111c38] border border-red-500/40 w-full max-w-sm rounded-3xl p-6 space-y-4 text-white shadow-2xl text-center animate-in fade-in zoom-in-95">
@@ -4042,30 +4217,46 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               <AlertTriangle className="w-7 h-7 text-red-400" />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <h3 className="text-base font-extrabold text-white">
-                মুছে ফেলতে চান?
+                আপনি কি নিশ্চিত?
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                আপনি কি নিশ্চিত যে <span className="font-bold text-red-400">"{deleteTarget.name}"</span> মুছে ফেলতে চান? এটি স্থায়ীভাবে ডাটাবেজ ও ওয়েবসাইট থেকে মুছে যাবে।
+                আপনি কি নিশ্চিত যে <span className="font-bold text-red-400">"{deleteTarget.name}"</span> মুছে ফেলতে চান? এটি ডাটাবেজ থেকে স্থায়ীভাবে সম্পূর্ণ মুছে যাবে এবং আর কখনো ফিরে আসবে না।
               </p>
+              {deleteTarget.details && (
+                <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/20 text-[11px] text-red-200/90 leading-relaxed text-left">
+                  ⚠️ {deleteTarget.details}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
+                disabled={isDeletingTarget}
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
               >
                 বাতিল করুন
               </button>
               <button
                 type="button"
+                disabled={isDeletingTarget}
                 onClick={executeDelete}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer transition-colors shadow-lg shadow-red-950/50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer transition-colors shadow-lg shadow-red-950/50 flex items-center justify-center gap-1.5"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>হ্যাঁ, ডিলিট</span>
+                {isDeletingTarget ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>মুছে ফেলা হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>হ্যাঁ, ডিলিট</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
