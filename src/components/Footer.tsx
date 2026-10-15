@@ -1,5 +1,5 @@
 import React from 'react';
-import { Instagram, Facebook, Youtube, Twitter } from 'lucide-react';
+import { Instagram, Facebook, Youtube, Twitter, Code2, ExternalLink } from 'lucide-react';
 import { Logo } from './Logo';
 
 interface FooterProps {
@@ -178,36 +178,50 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* ================= BOTTOM COPYRIGHT & CREDITS BAR ================= */}
-        <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-400">
-          <p>© 2026 Gadget Hub Mart (gadgethubmart.com). All rights reserved.</p>
+        <div className="pt-8 border-t border-slate-800/80 flex flex-col lg:flex-row items-center justify-between gap-5 text-xs text-slate-400">
+          {/* Copyright */}
+          <p className="order-2 lg:order-1 text-center lg:text-left font-medium">
+            © 2026 <span className="text-slate-200 font-semibold">Gadget Hub Mart</span>. All rights reserved.
+          </p>
 
-          {/* Designed & Developed Credits */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 text-center flex-wrap justify-center">
-            <span>Designed & Developed by</span>
+          {/* Designed & Developed Credits Badge */}
+          <div className="order-1 lg:order-2 inline-flex items-center flex-wrap justify-center gap-2 px-4 py-2 rounded-full bg-slate-900/90 border border-slate-700/60 shadow-[0_2px_14px_rgba(0,0,0,0.35)] backdrop-blur-xs text-xs">
+            <span className="inline-flex items-center gap-1.5 text-slate-400">
+              <Code2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span>Designed & Developed by</span>
+            </span>
             <a
               href="https://www.webtrixit.site"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-bold text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-              title="Visit Webtrix IT Solution"
+              className="inline-flex items-center gap-1 font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 hover:opacity-80 transition-opacity"
+              title="Webtrix IT Solution - Professional IT & Web Development Agency"
             >
-              Webtrix IT Solution
+              <span>Webtrix IT Solution</span>
+              <ExternalLink className="w-2.5 h-2.5 text-blue-400/80 shrink-0" />
             </a>
-            <span className="text-slate-600">•</span>
+
+            <span className="text-slate-600 hidden sm:inline">•</span>
+
+            <span className="text-slate-400">Architected by</span>
             <a
               href="https://www.paveljoy.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-bold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
-              title="Visit Pavel Ahmed Joy Portfolio"
+              className="inline-flex items-center gap-1 font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-80 transition-opacity"
+              title="Pavel Ahmed Joy Portfolio - Lead Architect"
             >
-              Pavel Ahmed Joy
+              <span>Pavel Ahmed Joy</span>
+              <ExternalLink className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
             </a>
           </div>
 
-          <div className="flex items-center gap-6">
+          {/* Legal Links */}
+          <div className="flex items-center gap-5 text-slate-400 order-3 font-medium">
             <button onClick={() => onNavigateView('privacy-policy')} className="hover:text-white transition-colors cursor-pointer">Privacy</button>
+            <span className="text-slate-700">•</span>
             <button onClick={() => onNavigateView('terms-of-service')} className="hover:text-white transition-colors cursor-pointer">Terms</button>
+            <span className="text-slate-700">•</span>
             <button onClick={() => onNavigateView('security')} className="hover:text-white transition-colors cursor-pointer">Security</button>
           </div>
         </div>
